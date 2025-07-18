@@ -17,11 +17,22 @@ setup_gcr_environment() {
   log_info "Using GCR project: $project"
   log_info "Using GCR region: $region"
 
-  log_info "Authenticating with GCR..."
-  if gcloud auth configure-docker "${region}.gcr.io" --quiet; then
-    log_success "Successfully authenticated with GCR"
+  # Determine correct registry host based on region value.
+  # If the region ends with ".pkg.dev" we assume Google Artifact Registry
+  # (e.g. europe-west10-docker.pkg.dev). Otherwise we default to Container
+  # Registry (e.g. eu.gcr.io).
+  local registry_host
+  if [[ "${region}" =~ \.pkg\.dev$ ]]; then
+    registry_host="${region}"
   else
-    log_error "Failed to authenticate with GCR"
+    registry_host="${region}.gcr.io"
+  fi
+
+  log_info "Authenticating with registry: ${registry_host}"
+  if gcloud auth configure-docker "${registry_host}" --quiet; then
+    log_success "Successfully authenticated with ${registry_host}"
+  else
+    log_error "Failed to authenticate with ${registry_host}"
     exit 1
   fi
 }

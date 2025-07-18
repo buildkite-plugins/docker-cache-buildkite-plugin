@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Ensure a stable env-var prefix; allow caller to override
+PLUGIN_PREFIX="${PLUGIN_PREFIX:-DOCKER_CACHE}"
+
 # Load shared utilities
 # shellcheck source=lib/shared.bash
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/shared.bash"
@@ -148,13 +151,21 @@ save_cache() {
 }
 
 # Reads either a value or a list from plugin config
-function plugin_read_list_into_result() {
-  prefix_read_list_into_result "BUILDKITE_PLUGIN_${PLUGIN_PREFIX}_${1}"
+plugin_read_list_into_result() {
+  local key_suffix="${1:-}"
+  [[ -z "$key_suffix" ]] && return 0
+  prefix_read_list_into_result "BUILDKITE_PLUGIN_${PLUGIN_PREFIX}_${key_suffix}"
 }
 
 # Reads a single value
 function plugin_read_config() {
-  local var="BUILDKITE_PLUGIN_${PLUGIN_PREFIX}_${1}"
+  local key_suffix="${1:-}"
   local default="${2:-}"
+  # If key is absent, return default (usually empty)
+  if [[ -z "$key_suffix" ]]; then
+    echo "$default"
+    return 0
+  fi
+  local var="BUILDKITE_PLUGIN_${PLUGIN_PREFIX}_${key_suffix}"
   echo "${!var:-$default}"
 }

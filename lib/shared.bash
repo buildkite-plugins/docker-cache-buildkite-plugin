@@ -75,7 +75,12 @@ build_cache_image_name() {
     gcr)
       local project="${BUILDKITE_PLUGIN_DOCKER_CACHE_GCR_PROJECT}"
       local region="${BUILDKITE_PLUGIN_DOCKER_CACHE_GCR_REGION:-us}"
-      echo "${region}.gcr.io/${project}/${base_image}:${tag}-${cache_key}"
+      if [[ "${region}" =~ \.pkg\.dev$ ]]; then
+        # Google Artifact Registry host already specified
+        echo "${region}/${project}/${base_image}:${tag}-${cache_key}"
+      else
+        echo "${region}.gcr.io/${project}/${base_image}:${tag}-${cache_key}"
+      fi
       ;;
     dockerhub)
       local username="${BUILDKITE_PLUGIN_DOCKER_CACHE_DOCKERHUB_USERNAME}"
