@@ -1,0 +1,54 @@
+#!/bin/bash
+set -euo pipefail
+
+# Load plugin library
+# shellcheck source=lib/plugin.bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/plugin.bash"
+
+main() {
+  echo "--- :docker: Setting up Docker cache environment"
+  log_info "Setting up Docker cache environment"
+
+  local provider="${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER:-}"
+  local image="${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE:-}"
+  local cache_key="${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY:-}"
+
+  if [[ -z "$provider" ]]; then
+    log_error "provider is required"
+    exit 1
+  fi
+
+  if [[ -z "$image" ]]; then
+    log_error "image is required"
+    exit 1
+  fi
+
+  log_info "Provider - $provider"
+  log_info "Image - $image"
+  log_info "Cache key - ${cache_key:-auto}"
+
+  case "$provider" in
+    acr|ecr|gcr|dockerhub)
+      ;;
+    *)
+      log_error "unsupported provider '$provider'"
+      log_info "Supported providers: ecr, gcr, dockerhub, acr"
+      exit 1
+      ;;
+  esac
+
+  # Authenticate with registry
+  setup_provider_environment "$provider"
+
+  # Generate cache key if not set
+  if [[ -z "$cache_key" ]]; then
+    cache_key=$(generate_cache_key)
+    export DOCKER_CACHE_KEY="$cache_key"
+    log_info "Generated cache key: $cache_key"
+  else
+    export DOCKER_CACHE_KEY="$cache_key"
+    log_info "Using provided cache key: $cache_key"
+  fi
+}
+
+main "$@"

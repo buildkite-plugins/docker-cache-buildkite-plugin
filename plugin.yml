@@ -1,14 +1,89 @@
-name: Buildkite Plugin
-description: Exceptional functionality
+name: Docker-Cache
+description: Cache Docker images across builds using various registry providers (ECR, GCR, Docker Hub, etc.)
 author: https://github.com/buildkite-plugins
 requirements:
   - bash
+  - docker
 configuration:
   properties:
-    mandatory:
+    provider:
       type: string
-    optional:
+      enum: [ecr, gcr, dockerhub, acr]
+      description: Registry provider type
+    image:
       type: string
+      description: Docker image name to cache
+    cache-key:
+      type: [string, array]
+      description: Cache key components
+    save:
+      type: boolean
+      description: Whether to save cache after build
+      default: true
+    restore:
+      type: boolean
+      description: Whether to restore cache before build
+      default: true
+    tag:
+      type: string
+      description: Tag for the cached image
+      default: "cache"
+    ecr:
+      type: object
+      description: ECR-specific configuration
+      properties:
+        region:
+          type: string
+          description: AWS region for ECR registry
+        account-id:
+          type: string
+          description: AWS account ID
+        registry-url:
+          type: string
+          description: ECR registry URL
+      additionalProperties: false
+    gcr:
+      type: object
+      description: GCR-specific configuration
+      properties:
+        project:
+          type: string
+          description: Google Cloud project ID
+        region:
+          type: string
+          description: GCR region
+          default: "us"
+      additionalProperties: false
+    dockerhub:
+      type: object
+      description: Docker Hub configuration
+      properties:
+        username:
+          type: string
+          description: Docker Hub username
+        repository:
+          type: string
+          description: Docker Hub repository name
+      additionalProperties: false
+    acr:
+      type: object
+      description: Azure Container Registry configuration
+      properties:
+        registry:
+          type: string
+          description: ACR registry name
+        username:
+          type: string
+          description: Azure service principal or username
+        password:
+          type: string
+          description: Azure service principal password or access key
+      additionalProperties: false
+    verbose:
+      type: boolean
+      description: Enable verbose logging
+      default: false
   required:
-    - mandatory
+    - provider
+    - image
   additionalProperties: false

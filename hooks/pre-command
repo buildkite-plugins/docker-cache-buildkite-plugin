@@ -1,0 +1,39 @@
+#!/bin/bash
+set -euo pipefail
+
+# Load plugin library
+# shellcheck source=lib/plugin.bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/plugin.bash"
+
+main() {
+  echo "--- :docker: Restoring Docker cache"
+  log_info "Restoring Docker cache"
+
+  plugin_read_config
+
+  # Skip if restore is disabled
+  if [[ "${BUILDKITE_PLUGIN_DOCKER_CACHE_RESTORE}" != "true" ]]; then
+    log_info "Cache restore disabled, skipping."
+    exit 0
+  fi
+
+  # Check dependencies
+  check_dependencies
+
+  local provider="${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}"
+  local cache_key="${DOCKER_CACHE_KEY:-}"
+
+  if [[ -z "$cache_key" ]]; then
+    log_error "Cache key not found."
+    exit 1
+  fi
+
+  # Attempt to restore cache
+  if restore_cache "$provider" "$cache_key"; then
+    log_success "Cache restoration completed."
+  else
+    log_info "No cache found or restore failed, building from scratch."
+  fi
+}
+
+main "$@"
