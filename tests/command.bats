@@ -31,14 +31,14 @@ setup() {
   assert_output --partial 'Provider: ecr'
 }
 
-@test "GCR provider sets up environment" {
-  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='gcr'
+@test "GAR provider sets up environment" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='gar'
   export BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE='test-image'
-  export BUILDKITE_PLUGIN_DOCKER_CACHE_GCR_PROJECT='test-project'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_PROJECT='test-project'
   run "$PWD"/hooks/environment
   assert_success
   assert_output --partial 'Setting up Docker cache environment'
-  assert_output --partial 'Provider: gcr'
+  assert_output --partial 'Provider: gar'
 }
 
 @test "Docker Hub provider sets up environment" {
