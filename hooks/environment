@@ -28,11 +28,11 @@ main() {
   log_info "Cache key - ${cache_key:-auto}"
 
   case "$provider" in
-    acr|ecr|gar|dockerhub)
+    ecr|gar)
       ;;
     *)
       log_error "unsupported provider '$provider'"
-      log_info "Supported providers: ecr, gar, dockerhub, acr"
+      log_info "Supported providers: ecr, gar"
       exit 1
       ;;
   esac

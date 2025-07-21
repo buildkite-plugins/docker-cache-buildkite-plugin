@@ -1,5 +1,5 @@
 name: Docker-Cache
-description: Cache Docker images across builds using various registry providers (ECR, GAR, Docker Hub, etc.)
+description: Cache Docker images across builds using various registry providers (ECR and GAR currently supported)
 author: https://github.com/buildkite-plugins
 requirements:
   - bash
@@ -8,7 +8,7 @@ configuration:
   properties:
     provider:
       type: string
-      enum: [ecr, gar, dockerhub, acr]
+      enum: [ecr, gar]
       description: Registry provider type
     image:
       type: string
@@ -56,31 +56,6 @@ configuration:
         repository:
           type: string
           description: Artifact Registry repository name (defaults to the image name when omitted)
-      additionalProperties: false
-    dockerhub:
-      type: object
-      description: Docker Hub configuration
-      properties:
-        username:
-          type: string
-          description: Docker Hub username
-        repository:
-          type: string
-          description: Docker Hub repository name
-      additionalProperties: false
-    acr:
-      type: object
-      description: Azure Container Registry configuration
-      properties:
-        registry:
-          type: string
-          description: ACR registry name
-        username:
-          type: string
-          description: Azure service principal or username
-        password:
-          type: string
-          description: Azure service principal password or access key
       additionalProperties: false
     verbose:
       type: boolean

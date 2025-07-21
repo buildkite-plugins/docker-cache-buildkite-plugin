@@ -41,26 +41,6 @@ setup() {
   assert_output --partial 'Provider: gar'
 }
 
-@test "Docker Hub provider sets up environment" {
-  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='dockerhub'
-  export BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE='test-image'
-  export BUILDKITE_PLUGIN_DOCKER_CACHE_DOCKERHUB_USERNAME='testuser'
-  run "$PWD"/hooks/environment
-  assert_success
-  assert_output --partial 'Setting up Docker cache environment'
-  assert_output --partial 'Provider: dockerhub'
-}
-
-@test "ACR provider sets up environment" {
-  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='acr'
-  export BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE='test-image'
-  export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY='testregistry.azurecr.io'
-  run "$PWD"/hooks/environment
-  assert_success
-  assert_output --partial 'Setting up Docker cache environment'
-  assert_output --partial 'Provider: acr'
-}
-
 @test "Fails on unsupported provider" {
   export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='unknown'
   export BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE='test-image'

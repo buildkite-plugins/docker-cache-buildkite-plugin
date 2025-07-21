@@ -20,14 +20,10 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/shared.bash"
 plugin_init_defaults
 
 # Load provider implementations
-# shellcheck source=lib/providers/acr.bash
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/providers/acr.bash"
 # shellcheck source=lib/providers/ecr.bash
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/providers/ecr.bash"
 # shellcheck source=lib/providers/gar.bash
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/providers/gar.bash"
-# shellcheck source=lib/providers/dockerhub.bash
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/providers/dockerhub.bash"
 
 plugin_read_config() {
   export BUILDKITE_PLUGIN_DOCKER_CACHE_SAVE="${BUILDKITE_PLUGIN_DOCKER_CACHE_SAVE:-true}"
@@ -40,17 +36,11 @@ setup_provider_environment() {
   local provider="$1"
 
   case "$provider" in
-    acr)
-      setup_acr_environment
-      ;;
     ecr)
       setup_ecr_environment
       ;;
     gar)
       setup_gar_environment
-      ;;
-    dockerhub)
-      setup_dockerhub_environment
       ;;
     *)
       unknown_provider "$provider"
@@ -114,17 +104,11 @@ restore_cache() {
   log_info "Restoring cache from $provider"
 
   case "$provider" in
-    acr)
-      restore_acr_cache "$cache_key"
-      ;;
     ecr)
       restore_ecr_cache "$cache_key"
       ;;
     gar)
       restore_gar_cache "$cache_key"
-      ;;
-    dockerhub)
-      restore_dockerhub_cache "$cache_key"
       ;;
     *)
       unknown_provider "$provider"
@@ -144,17 +128,11 @@ save_cache() {
   log_info "Saving cache to $provider"
 
   case "$provider" in
-    acr)
-      save_acr_cache "$cache_key"
-      ;;
     ecr)
       save_ecr_cache "$cache_key"
       ;;
     gar)
       save_gar_cache "$cache_key"
-      ;;
-    dockerhub)
-      save_dockerhub_cache "$cache_key"
       ;;
     *)
       unknown_provider "$provider"
