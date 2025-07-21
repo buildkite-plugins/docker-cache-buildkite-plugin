@@ -43,7 +43,7 @@ check_dependencies() {
         missing_deps+=("aws")
       fi
       ;;
-    gcr)
+    gar)
       if ! command_exists gcloud; then
         missing_deps+=("gcloud")
       fi
@@ -61,7 +61,8 @@ build_cache_image_name() {
   local provider="$1"
   local cache_key="$2"
   local base_image="${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}"
-  local tag="${BUILDKITE_PLUGIN_DOCKER_CACHE_TAG}"
+  # Use tag from config or default to "cache" if unset
+  local tag="${BUILDKITE_PLUGIN_DOCKER_CACHE_TAG:-cache}"
 
   case "$provider" in
     acr)
@@ -72,14 +73,15 @@ build_cache_image_name() {
       local registry_url="${DOCKER_CACHE_ECR_REGISTRY_URL}"
       echo "${registry_url}/${base_image}:${tag}-${cache_key}"
       ;;
-    gcr)
-      local project="${BUILDKITE_PLUGIN_DOCKER_CACHE_GCR_PROJECT}"
-      local region="${BUILDKITE_PLUGIN_DOCKER_CACHE_GCR_REGION:-us}"
+    gar)
+      local project="${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_PROJECT}"
+      local region="${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_REGION:-us}"
+      local repository="${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_REPOSITORY:-${base_image}}"
       if [[ "${region}" =~ \.pkg\.dev$ ]]; then
         # Google Artifact Registry host already specified
-        echo "${region}/${project}/${base_image}:${tag}-${cache_key}"
+        echo "${region}/${project}/${repository}/${base_image}:${tag}-${cache_key}"
       else
-        echo "${region}.gcr.io/${project}/${base_image}:${tag}-${cache_key}"
+        echo "${region}.gar.io/${project}/${repository}/${base_image}:${tag}-${cache_key}"
       fi
       ;;
     dockerhub)

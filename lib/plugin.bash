@@ -3,17 +3,29 @@
 # Ensure a stable env-var prefix; allow caller to override
 PLUGIN_PREFIX="${PLUGIN_PREFIX:-DOCKER_CACHE}"
 
+# Initialise default config values (exported env-vars)
+plugin_init_defaults() {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_SAVE="${BUILDKITE_PLUGIN_DOCKER_CACHE_SAVE:-true}"
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_RESTORE="${BUILDKITE_PLUGIN_DOCKER_CACHE_RESTORE:-true}"
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_TAG="${BUILDKITE_PLUGIN_DOCKER_CACHE_TAG:-cache}"
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_VERBOSE="${BUILDKITE_PLUGIN_DOCKER_CACHE_VERBOSE:-false}"
+}
+
 # Load shared utilities
 # shellcheck source=lib/shared.bash
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/shared.bash"
+
+# Export default configuration values so that later functions have them even
+# when the user omits optional plugin keys (e.g. TAG)
+plugin_init_defaults
 
 # Load provider implementations
 # shellcheck source=lib/providers/acr.bash
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/providers/acr.bash"
 # shellcheck source=lib/providers/ecr.bash
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/providers/ecr.bash"
-# shellcheck source=lib/providers/gcr.bash
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/providers/gcr.bash"
+# shellcheck source=lib/providers/gar.bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/providers/gar.bash"
 # shellcheck source=lib/providers/dockerhub.bash
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/providers/dockerhub.bash"
 
@@ -34,8 +46,8 @@ setup_provider_environment() {
     ecr)
       setup_ecr_environment
       ;;
-    gcr)
-      setup_gcr_environment
+    gar)
+      setup_gar_environment
       ;;
     dockerhub)
       setup_dockerhub_environment
@@ -108,8 +120,8 @@ restore_cache() {
     ecr)
       restore_ecr_cache "$cache_key"
       ;;
-    gcr)
-      restore_gcr_cache "$cache_key"
+    gar)
+      restore_gar_cache "$cache_key"
       ;;
     dockerhub)
       restore_dockerhub_cache "$cache_key"
@@ -138,8 +150,8 @@ save_cache() {
     ecr)
       save_ecr_cache "$cache_key"
       ;;
-    gcr)
-      save_gcr_cache "$cache_key"
+    gar)
+      save_gar_cache "$cache_key"
       ;;
     dockerhub)
       save_dockerhub_cache "$cache_key"
@@ -159,13 +171,7 @@ plugin_read_list_into_result() {
 
 # Reads a single value
 function plugin_read_config() {
-  local key_suffix="${1:-}"
+  local var="BUILDKITE_PLUGIN_${PLUGIN_PREFIX}_${1}"
   local default="${2:-}"
-  # If key is absent, return default (usually empty)
-  if [[ -z "$key_suffix" ]]; then
-    echo "$default"
-    return 0
-  fi
-  local var="BUILDKITE_PLUGIN_${PLUGIN_PREFIX}_${key_suffix}"
   echo "${!var:-$default}"
 }

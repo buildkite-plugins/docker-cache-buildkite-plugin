@@ -1,5 +1,5 @@
 name: Docker-Cache
-description: Cache Docker images across builds using various registry providers (ECR, GCR, Docker Hub, etc.)
+description: Cache Docker images across builds using various registry providers (ECR, GAR, Docker Hub, etc.)
 author: https://github.com/buildkite-plugins
 requirements:
   - bash
@@ -8,7 +8,7 @@ configuration:
   properties:
     provider:
       type: string
-      enum: [ecr, gcr, dockerhub, acr]
+      enum: [ecr, gar, dockerhub, acr]
       description: Registry provider type
     image:
       type: string
@@ -42,17 +42,20 @@ configuration:
           type: string
           description: ECR registry URL
       additionalProperties: false
-    gcr:
+    gar:
       type: object
-      description: GCR-specific configuration
+      description: GAR-specific configuration
       properties:
         project:
           type: string
           description: Google Cloud project ID
         region:
           type: string
-          description: GCR region
+          description: GAR region (e.g. "us") or full GAR host (e.g. "europe-west10-docker.pkg.dev")
           default: "us"
+        repository:
+          type: string
+          description: Artifact Registry repository name (defaults to the image name when omitted)
       additionalProperties: false
     dockerhub:
       type: object
