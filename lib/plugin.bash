@@ -4,7 +4,7 @@
 PLUGIN_PREFIX="${PLUGIN_PREFIX:-DOCKER_CACHE}"
 
 # Initialise default config values (exported env-vars)
-plugin_init_defaults() {
+plugin_read_config() {
   export BUILDKITE_PLUGIN_DOCKER_CACHE_SAVE="${BUILDKITE_PLUGIN_DOCKER_CACHE_SAVE:-true}"
   export BUILDKITE_PLUGIN_DOCKER_CACHE_RESTORE="${BUILDKITE_PLUGIN_DOCKER_CACHE_RESTORE:-true}"
   export BUILDKITE_PLUGIN_DOCKER_CACHE_TAG="${BUILDKITE_PLUGIN_DOCKER_CACHE_TAG:-cache}"
@@ -17,20 +17,13 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/shared.bash"
 
 # Export default configuration values so that later functions have them even
 # when the user omits optional plugin keys (e.g. TAG)
-plugin_init_defaults
+plugin_read_config
 
 # Load provider implementations
 # shellcheck source=lib/providers/ecr.bash
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/providers/ecr.bash"
 # shellcheck source=lib/providers/gar.bash
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/providers/gar.bash"
-
-plugin_read_config() {
-  export BUILDKITE_PLUGIN_DOCKER_CACHE_SAVE="${BUILDKITE_PLUGIN_DOCKER_CACHE_SAVE:-true}"
-  export BUILDKITE_PLUGIN_DOCKER_CACHE_RESTORE="${BUILDKITE_PLUGIN_DOCKER_CACHE_RESTORE:-true}"
-  export BUILDKITE_PLUGIN_DOCKER_CACHE_TAG="${BUILDKITE_PLUGIN_DOCKER_CACHE_TAG:-cache}"
-  export BUILDKITE_PLUGIN_DOCKER_CACHE_VERBOSE="${BUILDKITE_PLUGIN_DOCKER_CACHE_VERBOSE:-false}"
-}
 
 if [[ "${BUILDKITE_PLUGIN_DOCKER_CACHE_VERBOSE:-false}" == "true" ]]; then
   set -x
@@ -143,10 +136,4 @@ save_cache() {
       unknown_provider "$provider"
       ;;
   esac
-}
-
-plugin_read_config() {
-  local var="BUILDKITE_PLUGIN_${PLUGIN_PREFIX}_${1}"
-  local default="${2:-}"
-  echo "${!var:-$default}"
 }
