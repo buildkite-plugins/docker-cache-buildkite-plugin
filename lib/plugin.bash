@@ -32,6 +32,11 @@ plugin_read_config() {
   export BUILDKITE_PLUGIN_DOCKER_CACHE_VERBOSE="${BUILDKITE_PLUGIN_DOCKER_CACHE_VERBOSE:-false}"
 }
 
+if [[ "${BUILDKITE_PLUGIN_DOCKER_CACHE_VERBOSE:-false}" == "true" ]]; then
+  set -x
+  PS4='[${BASH_SOURCE}:${LINENO}]: '
+fi
+
 setup_provider_environment() {
   local provider="$1"
 
