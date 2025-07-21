@@ -145,15 +145,7 @@ save_cache() {
   esac
 }
 
-# Reads either a value or a list from plugin config
-plugin_read_list_into_result() {
-  local key_suffix="${1:-}"
-  [[ -z "$key_suffix" ]] && return 0
-  prefix_read_list_into_result "BUILDKITE_PLUGIN_${PLUGIN_PREFIX}_${key_suffix}"
-}
-
-# Reads a single value
-function plugin_read_config() {
+plugin_read_config() {
   local var="BUILDKITE_PLUGIN_${PLUGIN_PREFIX}_${1}"
   local default="${2:-}"
   echo "${!var:-$default}"
