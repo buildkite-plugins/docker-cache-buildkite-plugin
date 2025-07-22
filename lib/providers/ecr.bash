@@ -97,8 +97,16 @@ restore_ecr_cache() {
           return 0
         fi
       else
-        log_info "No cache found - will build from scratch"
-        export BUILDKITE_PLUGIN_DOCKER_CACHE_FROM=""
+        log_info "No cache found for key ${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY} - will build from scratch"
+        # Try to find any existing cache image for layer caching by checking for latest tag
+        local fallback_cache_image="${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGISTRY_URL}/${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:latest"
+        if image_exists_in_registry "$fallback_cache_image"; then
+          log_info "Using latest cache for layer caching: $fallback_cache_image"
+          export BUILDKITE_PLUGIN_DOCKER_CACHE_FROM="$fallback_cache_image"
+        else
+          export BUILDKITE_PLUGIN_DOCKER_CACHE_FROM=""
+          log_warning "No fallback cache found for layer caching"
+        fi
         export BUILDKITE_PLUGIN_DOCKER_CACHE_HIT="false"
         return 0
       fi
@@ -142,9 +150,24 @@ save_ecr_cache() {
     fi
   fi
 
+  # Build cache image name with latest tag for layer caching
+  local latest_image="${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGISTRY_URL}/${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:latest"
+
   if tag_image "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}" "$cache_image"; then
     if push_image "$cache_image"; then
       log_success "Cache saved successfully to ECR: $cache_image"
+
+      # Also tag and push as :latest for layer caching fallback
+      if tag_image "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}" "$latest_image"; then
+        if push_image "$latest_image"; then
+          log_success "Latest tag saved for layer caching: $latest_image"
+        else
+          log_warning "Failed to push latest tag (cache still saved)"
+        fi
+      else
+        log_warning "Failed to tag latest image (cache still saved)"
+      fi
+
       return 0
     else
       log_error "Failed to save cache to ECR"
