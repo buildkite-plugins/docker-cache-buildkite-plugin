@@ -199,7 +199,7 @@ export_final_image_variables() {
   export BUILDKITE_PLUGIN_DOCKER_CACHE_EXPORT_IMAGE="$image_part"
   export BUILDKITE_PLUGIN_DOCKER_CACHE_EXPORT_TAG="$tag_part"
 
-  log_info "Exported ${export_var}=${full_image}"
+  log_info "Exported ${BUILDKITE_PLUGIN_DOCKER_CACHE_EXPORT_ENV_VARIABLE:-BUILDKITE_PLUGIN_DOCKER_IMAGE}=${full_image}"
 }
 
 main "$@"
