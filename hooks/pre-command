@@ -78,14 +78,14 @@ main() {
     fi
 
     # Add build args
-    for arg in "${build_args[@]}"; do
+    for arg in ${build_args[@]+"${build_args[@]}"}; do
       docker_build_cmd+=("$arg")
     done
 
     # Add secrets (enable BuildKit if needed)
     if [[ ${#secrets_args[@]} -gt 0 ]]; then
       export DOCKER_BUILDKIT=1
-      for secret in "${secrets_args[@]}"; do
+      for secret in ${secrets_args[@]+"${secrets_args[@]}"}; do
         docker_build_cmd+=("$secret")
       done
     fi
