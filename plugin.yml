@@ -13,6 +13,45 @@ configuration:
     image:
       type: string
       description: Docker image name to cache
+    dockerfile:
+      type: string
+      description: Path to Dockerfile
+      default: "Dockerfile"
+    dockerfile-inline:
+      type: string
+      description: Inline Dockerfile content
+    context:
+      type: string
+      description: Docker build context
+      default: "."
+    target:
+      type: string
+      description: Target stage for multi-stage builds
+    build-args:
+      type: array
+      items:
+        type: string
+      description: Build-time variables
+    additional-build-args:
+      type: string
+      description: Additional docker build arguments as a single string
+    secrets:
+      type: array
+      items:
+        type: string
+      description: Build secrets
+    skip-pull-from-cache:
+      type: boolean
+      description: Skip pulling image from cache (for cache validation only)
+      default: false
+    export-env-variable:
+      type: string
+      description: Environment variable name for exporting image reference
+      default: "BUILDKITE_PLUGIN_DOCKER_IMAGE"
+    max-age-days:
+      type: number
+      description: Maximum age in days for cached images
+      default: 30
     cache-key:
       type: [string, array]
       description: Cache key components
@@ -28,6 +67,11 @@ configuration:
       type: string
       description: Tag for the cached image
       default: "cache"
+    strategy:
+      type: string
+      enum: [artifact, build-time, hybrid]
+      description: Caching strategy to use
+      default: "hybrid"
     ecr:
       type: object
       description: ECR-specific configuration

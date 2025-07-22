@@ -6,34 +6,199 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/plugin.bash"
 
 main() {
-  echo "--- :docker: Restoring Docker cache"
-  log_info "Restoring Docker cache"
+  echo "--- :docker: Docker cache build"
 
   plugin_read_config
+  check_dependencies
 
-  # Skip if restore is disabled
-  if [[ "${BUILDKITE_PLUGIN_DOCKER_CACHE_RESTORE}" != "true" ]]; then
-    log_info "Cache restore disabled, skipping."
+  local cache_key="${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY:-}"
+
+  # Setup provider authentication
+  setup_provider_environment
+
+  # Generate cache key if not provided and export it
+  if [[ -z "$cache_key" ]]; then
+    cache_key=$(generate_cache_key)
+    log_info "Generated cache key $cache_key"
+  else
+    log_info "Using provided cache key $cache_key"
+  fi
+
+  # Export the cache key for other functions to use
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_KEY="$cache_key"
+
+  # Build cache image name
+  local cache_image
+  cache_image=$(build_cache_image_name)
+
+  # Try to restore from cache first
+  restore_cache
+
+  # Check if we can skip build entirely
+  if [[ "${BUILDKITE_PLUGIN_DOCKER_CACHE_SKIP_PULL_FROM_CACHE:-false}" == "true" ]] && [[ "${BUILDKITE_PLUGIN_DOCKER_CACHE_HIT:-false}" == "true" ]]; then
+    log_info "Cache hit found and skip-pull-from-cache enabled - exiting early"
+    export_final_image_variables
     exit 0
   fi
 
-  # Check dependencies
-  check_dependencies
+  echo "--- :docker: Pulling cache image"
+  local image_pulled=false
 
-  local provider="${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}"
-  local cache_key="${DOCKER_CACHE_KEY:-}"
-
-  if [[ -z "$cache_key" ]]; then
-    log_error "Cache key not found."
-    exit 1
-  fi
-
-  # Attempt to restore cache
-  if restore_cache "$provider" "$cache_key"; then
-    log_success "Cache restoration completed."
+  # Try to pull cached image
+  if [[ "${BUILDKITE_PLUGIN_DOCKER_CACHE_HIT:-false}" == "true" ]] || pull_image "$cache_image"; then
+    log_success "Using cached image: $cache_image"
+    image_pulled=true
+    tag_image "$cache_image" "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}"
+    tag_image "$cache_image" "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:latest"
   else
-    log_info "No cache found or restore failed, building from scratch."
+    log_info "Cache miss - will build from scratch"
+
+    echo "--- :docker: Building image"
+
+    # Prepare build arguments
+    local build_args=()
+    local secrets_args=()
+
+    # Add build args if specified
+    read_build_args_into_array build_args
+    read_secrets_into_array secrets_args
+
+    # Build docker command
+    local docker_build_cmd=(
+      "docker" "build"
+      "--file=${BUILDKITE_PLUGIN_DOCKER_CACHE_DOCKERFILE:-Dockerfile}"
+      "--progress=plain"
+      "--tag=${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}"
+    )
+
+    # Add target if specified
+    if [[ -n "${BUILDKITE_PLUGIN_DOCKER_CACHE_TARGET:-}" ]]; then
+      docker_build_cmd+=("--target=${BUILDKITE_PLUGIN_DOCKER_CACHE_TARGET}")
+    fi
+
+    # Add build args
+    for arg in "${build_args[@]}"; do
+      docker_build_cmd+=("$arg")
+    done
+
+    # Add secrets (enable BuildKit if needed)
+    if [[ ${#secrets_args[@]} -gt 0 ]]; then
+      export DOCKER_BUILDKIT=1
+      for secret in "${secrets_args[@]}"; do
+        docker_build_cmd+=("$secret")
+      done
+    fi
+
+    # Add cache-from if available
+    if [[ -n "${BUILDKITE_PLUGIN_DOCKER_CACHE_FROM:-}" ]]; then
+      docker_build_cmd+=("--cache-from=${BUILDKITE_PLUGIN_DOCKER_CACHE_FROM}")
+    fi
+
+    # Add additional build args if specified
+    if [[ -n "${BUILDKITE_PLUGIN_DOCKER_CACHE_ADDITIONAL_BUILD_ARGS:-}" ]]; then
+      # shellcheck disable=SC2086
+      docker_build_cmd+=(${BUILDKITE_PLUGIN_DOCKER_CACHE_ADDITIONAL_BUILD_ARGS})
+    fi
+
+    # Add context
+    docker_build_cmd+=("${BUILDKITE_PLUGIN_DOCKER_CACHE_CONTEXT:-.}")
+
+    log_info "Building: ${docker_build_cmd[*]}"
+
+    # Execute build
+    if "${docker_build_cmd[@]}"; then
+      log_success "Image built successfully"
+
+      # Tag as latest
+      tag_image "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}" "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:latest"
+
+      # Push cache
+      echo "--- :docker: Pushing cache"
+      save_cache
+    else
+      log_error "Docker build failed"
+      exit 1
+    fi
   fi
+
+  # Export environment variables for subsequent plugins
+  export_final_image_variables
+
+  log_success "Docker cache build completed"
+}
+
+# Helper function to read build args into array
+read_build_args_into_array() {
+  local -n array_ref=$1
+  local i=0
+
+  # Check for single value
+  if [[ -n "${BUILDKITE_PLUGIN_DOCKER_CACHE_BUILD_ARGS:-}" ]]; then
+    array_ref+=("--build-arg=${BUILDKITE_PLUGIN_DOCKER_CACHE_BUILD_ARGS}")
+  else
+    # Check for array values
+    for ((i=0; ; i++)); do
+      local var_name="BUILDKITE_PLUGIN_DOCKER_CACHE_BUILD_ARGS_$i"
+      if [[ -n "${!var_name:-}" ]]; then
+        local arg="${!var_name}"
+        if [[ "$arg" != *=* ]]; then
+          # Environment variable shorthand
+          arg+="=${!arg:-}"
+        fi
+        array_ref+=("--build-arg=$arg")
+      else
+        break
+      fi
+    done
+  fi
+}
+
+# Helper function to read secrets into array
+read_secrets_into_array() {
+  local -n array_ref=$1
+  local i=0
+
+  # Check for single value
+  if [[ -n "${BUILDKITE_PLUGIN_DOCKER_CACHE_SECRETS:-}" ]]; then
+    if [[ "${BUILDKITE_PLUGIN_DOCKER_CACHE_SECRETS}" =~ ^id= ]]; then
+      array_ref+=("--secret=${BUILDKITE_PLUGIN_DOCKER_CACHE_SECRETS}")
+    else
+      array_ref+=("--secret=id=${BUILDKITE_PLUGIN_DOCKER_CACHE_SECRETS},env=${BUILDKITE_PLUGIN_DOCKER_CACHE_SECRETS}")
+    fi
+  else
+    # Check for array values
+    for ((i=0; ; i++)); do
+      local var_name="BUILDKITE_PLUGIN_DOCKER_CACHE_SECRETS_$i"
+      if [[ -n "${!var_name:-}" ]]; then
+        local secret="${!var_name}"
+        if [[ "$secret" =~ ^id= ]]; then
+          array_ref+=("--secret=$secret")
+        else
+          array_ref+=("--secret=id=$secret,env=$secret")
+        fi
+      else
+        break
+      fi
+    done
+  fi
+}
+
+# Helper function to export final image variables
+export_final_image_variables() {
+  local full_image="${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}"
+
+  # Extract image and tag parts
+  local image_part="${full_image%:*}"
+  local tag_part="${full_image##*:}"
+
+  # Export for docker plugin compatibility
+  export "${BUILDKITE_PLUGIN_DOCKER_CACHE_EXPORT_ENV_VARIABLE:-BUILDKITE_PLUGIN_DOCKER_IMAGE}=${full_image}"
+
+  # Export separate components
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_EXPORT_IMAGE="$image_part"
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_EXPORT_TAG="$tag_part"
+
+  log_info "Exported ${export_var}=${full_image}"
 }
 
 main "$@"

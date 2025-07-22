@@ -58,30 +58,20 @@ check_dependencies() {
 }
 
 build_cache_image_name() {
-  local provider="$1"
-  local cache_key="$2"
-  local base_image="${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}"
-  # Use tag from config or default to "cache" if unset
-  local tag="${BUILDKITE_PLUGIN_DOCKER_CACHE_TAG:-cache}"
-
-  case "$provider" in
+  case "${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}" in
     ecr)
-      local registry_url="${DOCKER_CACHE_ECR_REGISTRY_URL}"
-      echo "${registry_url}/${base_image}:${tag}-${cache_key}"
+      echo "${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGISTRY_URL}/${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_TAG:-cache}-${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}"
       ;;
     gar)
-      local project="${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_PROJECT}"
-      local region="${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_REGION:-us}"
-      local repository="${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_REPOSITORY:-${base_image}}"
-      if [[ "${region}" =~ \.pkg\.dev$ ]]; then
+      if [[ "${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_REGION:-us}" =~ \.pkg\.dev$ ]]; then
         # Google Artifact Registry host already specified
-        echo "${region}/${project}/${repository}/${base_image}:${tag}-${cache_key}"
+        echo "${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_REGION:-us}/${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_PROJECT}/${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_REPOSITORY:-${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}}/${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_TAG:-cache}-${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}"
       else
-        echo "${region}.gar.io/${project}/${repository}/${base_image}:${tag}-${cache_key}"
+        echo "${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_REGION:-us}.gar.io/${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_PROJECT}/${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_REPOSITORY:-${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}}/${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_TAG:-cache}-${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}"
       fi
       ;;
     *)
-      log_error "Unknown provider: $provider"
+      log_error "Unknown provider: ${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}"
       exit 1
       ;;
   esac

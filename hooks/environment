@@ -9,45 +9,41 @@ main() {
   echo "--- :docker: Setting up Docker cache environment"
   log_info "Setting up Docker cache environment"
 
-  local provider="${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER:-}"
-  local image="${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE:-}"
-  local cache_key="${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY:-}"
-
-  if [[ -z "$provider" ]]; then
+  if [[ -z "${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER:-}" ]]; then
     log_error "provider is required"
     exit 1
   fi
 
-  if [[ -z "$image" ]]; then
+  if [[ -z "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE:-}" ]]; then
     log_error "image is required"
     exit 1
   fi
 
-  log_info "Provider - $provider"
-  log_info "Image - $image"
-  log_info "Cache key - ${cache_key:-auto}"
+  log_info "Provider - ${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}"
+  log_info "Image - ${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}"
+  log_info "Cache key - ${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY:-auto}"
 
-  case "$provider" in
+  case "${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}" in
     ecr|gar)
       ;;
     *)
-      log_error "unsupported provider '$provider'"
+      log_error "unsupported provider '${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}'"
       log_info "Supported providers: ecr, gar"
       exit 1
       ;;
   esac
 
   # Authenticate with registry
-  setup_provider_environment "$provider"
+  setup_provider_environment
 
   # Generate cache key if not set
-  if [[ -z "$cache_key" ]]; then
+  if [[ -z "${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY:-}" ]]; then
+    local cache_key
     cache_key=$(generate_cache_key)
-    export DOCKER_CACHE_KEY="$cache_key"
-    log_info "Generated cache key: $cache_key"
+    export BUILDKITE_PLUGIN_DOCKER_CACHE_KEY="$cache_key"
+    log_info "Generated cache key - $cache_key"
   else
-    export DOCKER_CACHE_KEY="$cache_key"
-    log_info "Using provided cache key: $cache_key"
+    log_info "Using provided cache key - ${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}"
   fi
 }
 

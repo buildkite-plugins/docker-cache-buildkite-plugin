@@ -3,41 +3,39 @@
 # AWS ECR provider for Docker cache plugin
 
 setup_ecr_environment() {
-  local region="${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGION:-}"
-  local account_id="${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_ACCOUNT_ID:-}"
-  local registry_url="${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGISTRY_URL:-}"
-
   if ! command_exists aws; then
     log_error "AWS CLI is required for ECR provider"
     exit 1
   fi
 
-  if [[ -z "$region" ]]; then
+  if [[ -z "${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGION:-}" ]]; then
+    local region
     region=$(aws configure get region 2>/dev/null || echo "us-east-1")
     log_info "Using AWS region: $region"
+    export BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGION="$region"
   fi
-  export BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGION="$region"
 
-  if [[ -z "$account_id" ]]; then
+  if [[ -z "${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_ACCOUNT_ID:-}" ]]; then
     log_info "Auto-detecting AWS account ID..."
+    local account_id
     account_id=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
     if [[ -z "$account_id" ]]; then
       log_error "Failed to auto-detect AWS account ID. Please provide it in the configuration."
       exit 1
     fi
     log_info "Using AWS account ID: $account_id"
+    export BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_ACCOUNT_ID="$account_id"
   fi
-  export BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_ACCOUNT_ID="$account_id"
 
-  if [[ -z "$registry_url" ]]; then
-    registry_url="${account_id}.dkr.ecr.${region}.amazonaws.com"
+  if [[ -z "${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGISTRY_URL:-}" ]]; then
+    local registry_url="${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_ACCOUNT_ID}.dkr.ecr.${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGION}.amazonaws.com"
+    export BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGISTRY_URL="$registry_url"
   fi
-  export DOCKER_CACHE_ECR_REGISTRY_URL="$registry_url"
 
-  log_info "ECR registry URL: $registry_url"
+  log_info "ECR registry URL: ${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGISTRY_URL}"
 
   log_info "Authenticating with ECR..."
-  if aws ecr get-login-password --region "$region" | docker login --username AWS --password-stdin "$registry_url"; then
+  if aws ecr get-login-password --region "${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGION}" | docker login --username AWS --password-stdin "${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGISTRY_URL}"; then
     log_success "Successfully authenticated with ECR"
   else
     log_error "Failed to authenticate with ECR"
@@ -46,45 +44,97 @@ setup_ecr_environment() {
 }
 
 restore_ecr_cache() {
-  local cache_key="$1"
   local cache_image
 
-  cache_image=$(build_cache_image_name "ecr" "$cache_key")
+  cache_image=$(build_cache_image_name)
 
-  if image_exists_in_registry "$cache_image"; then
-    log_info "Cache hit! Restoring from $cache_image"
-    if pull_image "$cache_image"; then
-      tag_image "$cache_image" "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}"
-      log_success "Cache restored successfully from ECR"
+  case "${BUILDKITE_PLUGIN_DOCKER_CACHE_STRATEGY:-hybrid}" in
+    "artifact")
+      # Artifact caching - restore complete image or nothing
+      if image_exists_in_registry "$cache_image"; then
+        log_info "Complete cache hit! Restoring from $cache_image"
+        if pull_image "$cache_image"; then
+          tag_image "$cache_image" "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}"
+          export BUILDKITE_PLUGIN_DOCKER_CACHE_HIT="true"
+          log_success "Cache restored successfully from ECR"
+          return 0
+        else
+          log_warning "Failed to pull cache image from ECR"
+          return 1
+        fi
+      else
+        log_info "Cache miss. No cached image found for key ${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY} in ECR."
+        export BUILDKITE_PLUGIN_DOCKER_CACHE_HIT="false"
+        return 0
+      fi
+      ;;
+    "build-time")
+      # Build-time caching - set up cache-from only
+      if image_exists_in_registry "$cache_image"; then
+        log_info "Build cache available: $cache_image"
+        export BUILDKITE_PLUGIN_DOCKER_CACHE_FROM="$cache_image"
+        export BUILDKITE_PLUGIN_DOCKER_CACHE_HIT="false"
+      else
+        log_info "No build cache found for key ${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY} in ECR."
+        export BUILDKITE_PLUGIN_DOCKER_CACHE_FROM=""
+        export BUILDKITE_PLUGIN_DOCKER_CACHE_HIT="false"
+      fi
       return 0
-    else
-      log_warning "Failed to pull cache image from ECR"
-      return 1
-    fi
-  else
-    log_info "Cache miss. No cached image found for key $cache_key in ECR. Proceeding without cache."
-    return 0
-  fi
+      ;;
+    "hybrid"|*)
+      # Hybrid approach - try complete cache hit first, fall back to build-time caching
+      if image_exists_in_registry "$cache_image"; then
+        log_info "Complete cache hit! Restoring from $cache_image"
+        if pull_image "$cache_image"; then
+          tag_image "$cache_image" "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}"
+          export BUILDKITE_PLUGIN_DOCKER_CACHE_HIT="true"
+          log_success "Cache restored successfully from ECR - build can be skipped"
+          return 0
+        else
+          log_warning "Failed to pull complete cache image, falling back to build-time caching"
+          export BUILDKITE_PLUGIN_DOCKER_CACHE_FROM="$cache_image"
+          export BUILDKITE_PLUGIN_DOCKER_CACHE_HIT="false"
+          return 0
+        fi
+      else
+        log_info "No cache found - will build from scratch"
+        export BUILDKITE_PLUGIN_DOCKER_CACHE_FROM=""
+        export BUILDKITE_PLUGIN_DOCKER_CACHE_HIT="false"
+        return 0
+      fi
+      ;;
+  esac
 }
 
 save_ecr_cache() {
-  local cache_key="$1"
   local cache_image
-  local source_image="${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}"
 
-  cache_image=$(build_cache_image_name "ecr" "$cache_key")
-
-  if ! image_exists_locally "$source_image"; then
-    log_error "Source image not found locally: $source_image"
-    return 1
+  # Skip save if we had a complete cache hit (image wasn't rebuilt)
+  if [[ "${BUILDKITE_PLUGIN_DOCKER_CACHE_HIT:-false}" == "true" ]]; then
+    log_info "Cache was restored from complete image - no need to save"
+    return 0
   fi
 
-  local repository_name="${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}"
-  log_info "Ensuring ECR repository exists: $repository_name"
+  cache_image=$(build_cache_image_name)
 
-  if ! aws ecr describe-repositories --repository-names "$repository_name" --region "${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGION}" >/dev/null 2>&1; then
-    log_info "Creating ECR repository: $repository_name"
-    if aws ecr create-repository --repository-name "$repository_name" --region "${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGION}" >/dev/null; then
+  if ! image_exists_locally "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}"; then
+    case "${BUILDKITE_PLUGIN_DOCKER_CACHE_STRATEGY:-hybrid}" in
+      "artifact")
+        log_error "Source image not found locally: ${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}"
+        return 1
+        ;;
+      "build-time"|"hybrid"|*)
+        log_warning "Source image not found locally: ${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE} - this is expected if build was skipped or failed"
+        return 0
+        ;;
+    esac
+  fi
+
+  log_info "Ensuring ECR repository exists: ${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}"
+
+  if ! aws ecr describe-repositories --repository-names "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}" --region "${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGION}" >/dev/null 2>&1; then
+    log_info "Creating ECR repository: ${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}"
+    if aws ecr create-repository --repository-name "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}" --region "${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGION}" >/dev/null; then
       log_success "ECR repository created successfully"
     else
       log_error "Failed to create ECR repository"
@@ -92,7 +142,7 @@ save_ecr_cache() {
     fi
   fi
 
-  if tag_image "$source_image" "$cache_image"; then
+  if tag_image "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}" "$cache_image"; then
     if push_image "$cache_image"; then
       log_success "Cache saved successfully to ECR: $cache_image"
       return 0
