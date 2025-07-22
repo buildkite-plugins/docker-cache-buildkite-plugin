@@ -45,6 +45,7 @@ main() {
   local image_pulled=false
 
   # Try to pull cached image
+  log_info "Debug: BUILDKITE_PLUGIN_DOCKER_CACHE_HIT=${BUILDKITE_PLUGIN_DOCKER_CACHE_HIT:-false}"
   if [[ "${BUILDKITE_PLUGIN_DOCKER_CACHE_HIT:-false}" == "true" ]] || pull_image "$cache_image"; then
     log_success "Using cached image: $cache_image"
     image_pulled=true
@@ -129,12 +130,12 @@ main() {
 
 # Helper function to read build args into array
 read_build_args_into_array() {
-  local -n array_ref=$1
+  local array_name="$1"
   local i=0
 
   # Check for single value
   if [[ -n "${BUILDKITE_PLUGIN_DOCKER_CACHE_BUILD_ARGS:-}" ]]; then
-    array_ref+=("--build-arg=${BUILDKITE_PLUGIN_DOCKER_CACHE_BUILD_ARGS}")
+    eval "${array_name}+=(\"--build-arg=\${BUILDKITE_PLUGIN_DOCKER_CACHE_BUILD_ARGS}\")"
   else
     # Check for array values
     for ((i=0; ; i++)); do
@@ -145,7 +146,7 @@ read_build_args_into_array() {
           # Environment variable shorthand
           arg+="=${!arg:-}"
         fi
-        array_ref+=("--build-arg=$arg")
+        eval "${array_name}+=(\"--build-arg=\$arg\")"
       else
         break
       fi
@@ -155,15 +156,15 @@ read_build_args_into_array() {
 
 # Helper function to read secrets into array
 read_secrets_into_array() {
-  local -n array_ref=$1
+  local array_name="$1"
   local i=0
 
   # Check for single value
   if [[ -n "${BUILDKITE_PLUGIN_DOCKER_CACHE_SECRETS:-}" ]]; then
     if [[ "${BUILDKITE_PLUGIN_DOCKER_CACHE_SECRETS}" =~ ^id= ]]; then
-      array_ref+=("--secret=${BUILDKITE_PLUGIN_DOCKER_CACHE_SECRETS}")
+      eval "${array_name}+=(\"--secret=\${BUILDKITE_PLUGIN_DOCKER_CACHE_SECRETS}\")"
     else
-      array_ref+=("--secret=id=${BUILDKITE_PLUGIN_DOCKER_CACHE_SECRETS},env=${BUILDKITE_PLUGIN_DOCKER_CACHE_SECRETS}")
+      eval "${array_name}+=(\"--secret=id=\${BUILDKITE_PLUGIN_DOCKER_CACHE_SECRETS},env=\${BUILDKITE_PLUGIN_DOCKER_CACHE_SECRETS}\")"
     fi
   else
     # Check for array values
@@ -172,9 +173,9 @@ read_secrets_into_array() {
       if [[ -n "${!var_name:-}" ]]; then
         local secret="${!var_name}"
         if [[ "$secret" =~ ^id= ]]; then
-          array_ref+=("--secret=$secret")
+          eval "${array_name}+=(\"--secret=\$secret\")"
         else
-          array_ref+=("--secret=id=$secret,env=$secret")
+          eval "${array_name}+=(\"--secret=id=\$secret,env=\$secret\")"
         fi
       else
         break
