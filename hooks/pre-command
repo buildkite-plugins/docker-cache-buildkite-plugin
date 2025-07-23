@@ -41,19 +41,21 @@ main() {
     exit 0
   fi
 
-  echo "--- :docker: Pulling cache image"
+  echo "--- :docker: Processing cache result"
   local image_pulled=false
 
-  # Try to pull cached image
-  log_info "Debug: BUILDKITE_PLUGIN_DOCKER_CACHE_HIT=${BUILDKITE_PLUGIN_DOCKER_CACHE_HIT:-false}"
-  if [[ "${BUILDKITE_PLUGIN_DOCKER_CACHE_HIT:-false}" == "true" ]] || pull_image "$cache_image"; then
+  if [[ "${BUILDKITE_PLUGIN_DOCKER_CACHE_HIT:-false}" == "true" ]]; then
+    # Provider already pulled the cache image
     log_success "Using cached image: $cache_image"
     image_pulled=true
     tag_image "$cache_image" "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}"
     tag_image "$cache_image" "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:latest"
   else
+    # No cache hit - need to build
     log_info "Cache miss - will build from scratch"
+  fi
 
+  if [[ "$image_pulled" == "false" ]]; then
     echo "--- :docker: Building image"
 
     # Prepare build arguments
