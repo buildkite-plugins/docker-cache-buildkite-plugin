@@ -59,8 +59,8 @@ restore_gar_cache() {
         return 0
       fi
       ;;
-    "build-time")
-      # Build-time caching - set up cache-from only
+    "build")
+      # Build caching - set up cache-from only
       if image_exists_in_registry "$cache_image"; then
         log_info "Build cache available: $cache_image"
         export BUILDKITE_PLUGIN_DOCKER_CACHE_FROM="$cache_image"
@@ -73,7 +73,7 @@ restore_gar_cache() {
       return 0
       ;;
     "hybrid"|*)
-      # Hybrid approach - try complete cache hit first, fall back to build-time caching
+      # Hybrid approach - try complete cache hit first, fall back to build caching
       if image_exists_in_registry "$cache_image"; then
         log_info "Complete cache hit! Restoring from $cache_image"
         if pull_image "$cache_image"; then
@@ -82,7 +82,7 @@ restore_gar_cache() {
           log_success "Cache restored successfully from GAR - build can be skipped"
           return 0
         else
-          log_warning "Failed to pull complete cache image, falling back to build-time caching"
+          log_warning "Failed to pull complete cache image, falling back to build caching"
           export BUILDKITE_PLUGIN_DOCKER_CACHE_FROM="$cache_image"
           export BUILDKITE_PLUGIN_DOCKER_CACHE_HIT="false"
           return 0
@@ -123,7 +123,7 @@ save_gar_cache() {
         log_error "Source image not found locally: ${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}"
         return 1
         ;;
-      "build-time"|"hybrid"|*)
+      "build"|"hybrid"|*)
         log_warning "Source image not found locally: ${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE} - this is expected if build was skipped or failed"
         return 0
         ;;

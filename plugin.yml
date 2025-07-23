@@ -31,7 +31,7 @@ configuration:
       type: array
       items:
         type: string
-      description: Build-time variables
+      description: Arguments to pass to the Docker build command
     additional-build-args:
       type: string
       description: Additional docker build arguments as a single string
@@ -69,7 +69,7 @@ configuration:
       default: "cache"
     strategy:
       type: string
-      enum: [artifact, build-time, hybrid]
+      enum: [artifact, build, hybrid]
       description: Caching strategy to use
       default: "hybrid"
     ecr:

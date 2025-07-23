@@ -48,39 +48,43 @@ main() {
     # Provider already pulled the cache image
     log_success "Using cached image: $cache_image"
     image_pulled=true
-    
+
     # Check if we already have the required tags locally
     local target_with_key="${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}"
     local target_latest="${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:latest"
-    
+
     local needs_key_tag=true
     local needs_latest_tag=true
-    
+
     # Check if we already have the exact tags we need
     if image_exists_locally "$target_with_key"; then
       needs_key_tag=false
     fi
-    
+
     if image_exists_locally "$target_latest"; then
       needs_latest_tag=false
     fi
-    
+
     # Only tag if we actually need to
     if [[ "$needs_key_tag" == "true" ]]; then
       tag_image "$cache_image" "$target_with_key"
     fi
-    
+
     if [[ "$needs_latest_tag" == "true" ]]; then
       tag_image "$cache_image" "$target_latest"
     fi
-    
+
     # If we didn't need any tagging, log that we skipped it
     if [[ "$needs_key_tag" == "false" && "$needs_latest_tag" == "false" ]]; then
       log_info "All required tags already exist locally - skipping tag operations"
     fi
   else
     # No cache hit - need to build
-    log_info "Cache miss - will build from scratch"
+    if [[ "${BUILDKITE_PLUGIN_DOCKER_CACHE_STRATEGY:-hybrid}" == "build" ]]; then
+      log_info "Build strategy - building with layer cache optimization"
+    else
+      log_info "Cache miss - will build from scratch"
+    fi
   fi
 
   if [[ "$image_pulled" == "false" ]]; then
