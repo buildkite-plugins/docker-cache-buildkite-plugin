@@ -93,10 +93,14 @@ generate_cache_key() {
     # Auto-generate cache key from common files
     local key_components=""
 
+    if [[ -f "${BUILDKITE_PLUGIN_DOCKER_CACHE_DOCKERFILE}" ]]; then
+      key_components="${key_components}$(sha1sum "${BUILDKITE_PLUGIN_DOCKER_CACHE_DOCKERFILE}" | cut -d' ' -f1)"
+    fi
+
     # Check for common dependency files
-    for file in Dockerfile package.json yarn.lock requirements.txt Gemfile.lock composer.lock go.mod; do
+    for file in package.json yarn.lock requirements.txt Gemfile.lock composer.lock go.mod; do
       if [[ -f "$file" ]]; then
-        key_components="${key_components}$(sha1sum "$file")"
+        key_components="${key_components}$(sha1sum "$file" | cut -d' ' -f1)"
       fi
     done
 
