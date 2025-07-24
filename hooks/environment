@@ -23,6 +23,7 @@ main() {
   log_info "Image - ${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}"
   log_info "Cache key - ${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY:-auto}"
 
+  # Validate provider
   case "${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}" in
     ecr|gar)
       ;;
@@ -30,6 +31,22 @@ main() {
       log_error "unsupported provider '${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}'"
       log_info "Supported providers: ecr, gar"
       exit 1
+      ;;
+  esac
+
+  # Validate image name format
+  validate_image_name "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}"
+
+  # Validate strategy
+  validate_strategy "${BUILDKITE_PLUGIN_DOCKER_CACHE_STRATEGY:-hybrid}"
+
+  # Provider-specific validation
+  case "${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}" in
+    ecr)
+      validate_ecr_config
+      ;;
+    gar)
+      validate_gar_config
       ;;
   esac
 
@@ -44,6 +61,108 @@ main() {
     log_info "Generated cache key - $cache_key"
   else
     log_info "Using provided cache key - ${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}"
+  fi
+}
+
+# Validation functions
+validate_image_name() {
+  local image="$1"
+
+  # Check for empty image name
+  if [[ -z "$image" ]]; then
+    log_error "image name cannot be empty"
+    exit 1
+  fi
+
+  # Check for invalid characters (Docker image names can only contain lowercase letters, digits, and separators)
+  if [[ ! "$image" =~ ^[a-z0-9._/-]+$ ]]; then
+    log_error "invalid image name '$image' - only lowercase letters, digits, periods, underscores, hyphens, and slashes are allowed"
+    exit 1
+  fi
+
+  # Check length limits
+  if [[ ${#image} -gt 255 ]]; then
+    log_error "image name '$image' is too long (max 255 characters)"
+    exit 1
+  fi
+
+  # Check for consecutive separators or invalid patterns
+  if [[ "$image" =~ (^[._/-]|[._/-]$|[._/-]{2,}) ]]; then
+    log_error "invalid image name '$image' - cannot start/end with separators or have consecutive separators"
+    exit 1
+  fi
+}
+
+validate_strategy() {
+  local strategy="$1"
+
+  case "$strategy" in
+    artifact|build|hybrid)
+      ;;
+    *)
+      log_error "invalid strategy '$strategy'"
+      log_info "Supported strategies: artifact, build, hybrid"
+      exit 1
+      ;;
+  esac
+}
+
+validate_ecr_config() {
+  # Validate AWS account ID format if provided
+  if [[ -n "${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_ACCOUNT_ID:-}" ]]; then
+    if [[ ! "${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_ACCOUNT_ID}" =~ ^[0-9]{12}$ ]]; then
+      log_error "invalid AWS account ID '${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_ACCOUNT_ID}' - must be 12 digits"
+      exit 1
+    fi
+  fi
+
+  # Validate AWS region format if provided
+  if [[ -n "${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGION:-}" ]]; then
+    if [[ ! "${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGION}" =~ ^[a-z]{2,3}-[a-z]+-[0-9]+$ ]]; then
+      log_error "invalid AWS region '${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGION}' - must be in format like 'us-east-1'"
+      exit 1
+    fi
+  fi
+
+  # Validate registry URL format if provided
+  if [[ -n "${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGISTRY_URL:-}" ]]; then
+    if [[ ! "${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGISTRY_URL}" =~ ^[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com$ ]]; then
+      log_error "invalid ECR registry URL '${BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGISTRY_URL}' - must be in format 'ACCOUNT.dkr.ecr.REGION.amazonaws.com'"
+      exit 1
+    fi
+  fi
+}
+
+validate_gar_config() {
+  # Validate Google Cloud project ID if provided
+  if [[ -n "${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_PROJECT:-}" ]]; then
+    if [[ ! "${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_PROJECT}" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]]; then
+      log_error "invalid Google Cloud project ID '${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_PROJECT}' - must be 6-30 characters, start with letter, end with letter or number, contain only lowercase letters, numbers, and hyphens"
+      exit 1
+    fi
+  else
+    log_error "Google Cloud project ID is required for GAR provider"
+    log_info "Set BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_PROJECT or configure 'gar.project' in plugin configuration"
+    exit 1
+  fi
+
+  # Validate GAR region/host format if provided
+  if [[ -n "${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_REGION:-}" ]]; then
+    local region="${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_REGION}"
+    # Allow both short regions (us, europe) and full GAR hostnames
+    if [[ ! "$region" =~ ^(us|europe|asia)$ ]] && [[ ! "$region" =~ ^[a-z0-9-]+-docker\.pkg\.dev$ ]]; then
+      log_error "invalid GAR region '${region}' - must be 'us', 'europe', 'asia', or a full GAR hostname like 'us-central1-docker.pkg.dev'"
+      exit 1
+    fi
+  fi
+
+  # Validate GAR repository name if provided
+  if [[ -n "${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_REPOSITORY:-}" ]]; then
+    local repo="${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_REPOSITORY}"
+    if [[ ! "$repo" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?$ ]] || [[ ${#repo} -gt 63 ]]; then
+      log_error "invalid GAR repository name '${repo}' - must start with letter, end with letter or number, contain only lowercase letters, numbers, and hyphens, max 63 characters"
+      exit 1
+    fi
   fi
 }
 
