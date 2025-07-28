@@ -26,7 +26,7 @@ command_exists() {
 
 unknown_provider() {
   local provider="$1"
-  log_error "Unknown provider: $1"
+  log_error "Unknown provider: $provider"
   exit 1
 }
 

@@ -132,7 +132,7 @@ main() {
     # Add additional build args if specified
     if [[ -n "${BUILDKITE_PLUGIN_DOCKER_CACHE_ADDITIONAL_BUILD_ARGS:-}" ]]; then
       # shellcheck disable=SC2086
-      docker_build_cmd+=(${BUILDKITE_PLUGIN_DOCKER_CACHE_ADDITIONAL_BUILD_ARGS})
+      docker_build_cmd+=("${BUILDKITE_PLUGIN_DOCKER_CACHE_ADDITIONAL_BUILD_ARGS[@]}")
     fi
 
     # Add context
