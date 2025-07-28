@@ -1,14 +1,111 @@
-name: Buildkite Plugin
-description: Exceptional functionality
+name: Docker-Cache
+description: Cache Docker images across builds using various registry providers (ECR and GAR currently supported)
 author: https://github.com/buildkite-plugins
 requirements:
   - bash
+  - docker
 configuration:
   properties:
-    mandatory:
+    provider:
       type: string
-    optional:
+      enum: [ecr, gar]
+      description: Registry provider type
+    image:
       type: string
+      description: Docker image name to cache
+    dockerfile:
+      type: string
+      description: Path to Dockerfile
+      default: "Dockerfile"
+    dockerfile-inline:
+      type: string
+      description: Inline Dockerfile content
+    context:
+      type: string
+      description: Docker build context
+      default: "."
+    target:
+      type: string
+      description: Target stage for multi-stage builds
+    build-args:
+      type: array
+      items:
+        type: string
+      description: Arguments to pass to the Docker build command
+    additional-build-args:
+      type: string
+      description: Additional docker build arguments as a single string
+    secrets:
+      type: array
+      items:
+        type: string
+      description: Build secrets
+    skip-pull-from-cache:
+      type: boolean
+      description: Skip pulling image from cache (for cache validation only)
+      default: false
+    export-env-variable:
+      type: string
+      description: Environment variable name for exporting image reference
+      default: "BUILDKITE_PLUGIN_DOCKER_IMAGE"
+    max-age-days:
+      type: number
+      description: Maximum age in days for cached images
+      default: 30
+    cache-key:
+      type: [string, array]
+      description: Cache key components
+    save:
+      type: boolean
+      description: Whether to save cache after build
+      default: true
+    restore:
+      type: boolean
+      description: Whether to restore cache before build
+      default: true
+    tag:
+      type: string
+      description: Tag for the cached image
+      default: "cache"
+    strategy:
+      type: string
+      enum: [artifact, build, hybrid]
+      description: Caching strategy to use
+      default: "hybrid"
+    ecr:
+      type: object
+      description: ECR-specific configuration
+      properties:
+        region:
+          type: string
+          description: AWS region for ECR registry
+        account-id:
+          type: string
+          description: AWS account ID
+        registry-url:
+          type: string
+          description: ECR registry URL
+      additionalProperties: false
+    gar:
+      type: object
+      description: GAR-specific configuration
+      properties:
+        project:
+          type: string
+          description: Google Cloud project ID
+        region:
+          type: string
+          description: GAR region (e.g. "us") or full GAR host (e.g. "europe-west10-docker.pkg.dev")
+          default: "us"
+        repository:
+          type: string
+          description: Artifact Registry repository name (defaults to the image name when omitted)
+      additionalProperties: false
+    verbose:
+      type: boolean
+      description: Enable verbose logging
+      default: false
   required:
-    - mandatory
+    - provider
+    - image
   additionalProperties: false
