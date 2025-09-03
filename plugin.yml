@@ -1,5 +1,5 @@
 name: Docker-Cache
-description: Cache Docker images across builds using various registry providers (ECR and GAR currently supported)
+description: Cache Docker images across builds using various registry providers (ECR, GAR, and Buildkite Packages currently supported)
 author: https://github.com/buildkite-plugins
 requirements:
   - bash
@@ -8,7 +8,7 @@ configuration:
   properties:
     provider:
       type: string
-      enum: [ecr, gar]
+      enum: [ecr, gar, buildkite]
       description: Registry provider type
     image:
       type: string
@@ -100,6 +100,25 @@ configuration:
         repository:
           type: string
           description: Artifact Registry repository name (defaults to the image name when omitted)
+      additionalProperties: false
+    buildkite:
+      type: object
+      description: Buildkite Packages Container Registry configuration
+      properties:
+        org-slug:
+          type: string
+          description: Buildkite organization slug (defaults to BUILDKITE_ORGANIZATION_SLUG environment variable)
+        registry-slug:
+          type: string
+          description: Container registry slug (defaults to the image name when omitted)
+        auth-method:
+          type: string
+          enum: [api-token, oidc]
+          description: Authentication method
+          default: "api-token"
+        api-token:
+          type: string
+          description: Buildkite API token with Read Packages and Write Packages scopes (required when auth-method is api-token)
       additionalProperties: false
     verbose:
       type: boolean

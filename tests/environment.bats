@@ -194,6 +194,121 @@ setup() {
   done
 }
 
+@test "Buildkite provider requires organization slug" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='buildkite'
+  export BUILDKITE_API_TOKEN='fake-token'  # Set token so we get to org slug validation
+  unset BUILDKITE_ORGANIZATION_SLUG
+  unset BUILDKITE_PLUGIN_DOCKER_CACHE_BUILDKITE_ORG_SLUG
+
+  # Mock buildkite-agent
+  function buildkite-agent() { return 0; }
+  export -f buildkite-agent
+
+  run "$PWD"/hooks/environment
+  assert_failure
+  assert_output --partial 'Buildkite organization slug is required'
+}
+
+@test "Buildkite provider fails with invalid auth method" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='buildkite'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_BUILDKITE_AUTH_METHOD='invalid'
+  export BUILDKITE_ORGANIZATION_SLUG='my-org'
+  export BUILDKITE_API_TOKEN='fake-token'
+
+  function buildkite-agent() { return 0; }
+  function docker() { return 0; }
+  export -f buildkite-agent docker
+
+  run "$PWD"/hooks/environment
+  assert_failure
+  assert_output --partial 'invalid authentication method'
+  assert_output --partial 'api-token'
+  assert_output --partial 'oidc'
+}
+
+@test "Buildkite provider requires API token for api-token auth" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='buildkite'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_BUILDKITE_AUTH_METHOD='api-token'
+  export BUILDKITE_ORGANIZATION_SLUG='my-org'
+  unset BUILDKITE_API_TOKEN
+  unset BUILDKITE_PLUGIN_DOCKER_CACHE_BUILDKITE_API_TOKEN
+
+  function buildkite-agent() { return 0; }
+  function docker() { return 0; }
+  export -f buildkite-agent docker
+
+  run "$PWD"/hooks/environment
+  assert_failure
+  assert_output --partial 'API token is required for api-token authentication'
+}
+
+@test "Buildkite provider fails with invalid organization slug" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='buildkite'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_BUILDKITE_ORG_SLUG='Invalid-Org'
+  export BUILDKITE_API_TOKEN='fake-token'
+
+  function buildkite-agent() { return 0; }
+  function docker() { return 0; }
+  export -f buildkite-agent docker
+
+  run "$PWD"/hooks/environment
+  assert_failure
+  assert_output --partial 'invalid organization slug'
+}
+
+@test "Buildkite provider fails with invalid registry slug" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='buildkite'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_BUILDKITE_REGISTRY_SLUG='Invalid-Registry'
+  export BUILDKITE_ORGANIZATION_SLUG='my-org'
+  export BUILDKITE_API_TOKEN='fake-token'
+
+  function buildkite-agent() { return 0; }
+  function docker() { return 0; }
+  export -f buildkite-agent docker
+
+  run "$PWD"/hooks/environment
+  assert_failure
+  assert_output --partial 'invalid registry slug'
+}
+
+@test "Buildkite provider accepts valid organization and registry slugs" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='buildkite'
+  export BUILDKITE_ORGANIZATION_SLUG='my-org'
+  export BUILDKITE_API_TOKEN='fake-token'
+
+  function buildkite-agent() { return 0; }
+  function docker() { return 0; }
+  export -f buildkite-agent docker
+
+  for org_slug in "my-org" "my-org-123" "org123"; do
+    export BUILDKITE_PLUGIN_DOCKER_CACHE_BUILDKITE_ORG_SLUG="$org_slug"
+
+    run "$PWD"/hooks/environment
+    assert_success
+  done
+}
+
+@test "Buildkite provider works with OIDC authentication" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='buildkite'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_BUILDKITE_AUTH_METHOD='oidc'
+  export BUILDKITE_ORGANIZATION_SLUG='my-org'
+
+  function buildkite-agent() {
+    if [[ "$1" == "oidc" && "$2" == "request-token" ]]; then
+      echo "fake-oidc-token"
+      return 0
+    fi
+    return 0
+  }
+  function docker() { return 0; }
+  export -f buildkite-agent docker
+
+  run "$PWD"/hooks/environment
+  assert_success
+  assert_output --partial 'Authentication method: oidc'
+  assert_output --partial 'Successfully authenticated with Buildkite Packages using OIDC'
+}
+
 @test "generate_cache_key creates hash from Dockerfile" {
   # Load the plugin library for testing
   source "$PWD/lib/plugin.bash"

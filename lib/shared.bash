@@ -48,6 +48,11 @@ check_dependencies() {
         missing_deps+=("gcloud")
       fi
       ;;
+    buildkite)
+      if ! command_exists buildkite-agent; then
+        missing_deps+=("buildkite-agent")
+      fi
+      ;;
   esac
 
   if [[ ${#missing_deps[@]} -gt 0 ]]; then
@@ -69,6 +74,9 @@ build_cache_image_name() {
       else
         echo "${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_REGION:-us}.gar.io/${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_PROJECT}/${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_REPOSITORY:-${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}}/${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_TAG:-cache}-${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}"
       fi
+      ;;
+    buildkite)
+      echo "${BUILDKITE_PLUGIN_DOCKER_CACHE_BUILDKITE_REGISTRY_URL}/${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_TAG:-cache}-${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}"
       ;;
     *)
       log_error "Unknown provider: ${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}"

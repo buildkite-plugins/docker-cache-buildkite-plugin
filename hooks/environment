@@ -25,11 +25,11 @@ main() {
 
   # Validate provider
   case "${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}" in
-    ecr|gar)
+    ecr|gar|buildkite)
       ;;
     *)
       log_error "unsupported provider '${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}'"
-      log_info "Supported providers: ecr, gar"
+      log_info "Supported providers: ecr, gar, buildkite"
       exit 1
       ;;
   esac
@@ -47,6 +47,9 @@ main() {
       ;;
     gar)
       validate_gar_config
+      ;;
+    buildkite)
+      validate_buildkite_config
       ;;
   esac
 
@@ -161,6 +164,47 @@ validate_gar_config() {
     local repo="${BUILDKITE_PLUGIN_DOCKER_CACHE_GAR_REPOSITORY}"
     if [[ ! "$repo" =~ ^[a-z]([a-z0-9-]*[a-z0-9])?$ ]] || [[ ${#repo} -gt 63 ]]; then
       log_error "invalid GAR repository name '${repo}' - must start with letter, end with letter or number, contain only lowercase letters, numbers, and hyphens, max 63 characters"
+      exit 1
+    fi
+  fi
+}
+
+validate_buildkite_config() {
+  # Validate authentication method
+  local auth_method="${BUILDKITE_PLUGIN_DOCKER_CACHE_BUILDKITE_AUTH_METHOD:-api-token}"
+  case "$auth_method" in
+    api-token|oidc)
+      ;;
+    *)
+      log_error "invalid authentication method '${auth_method}' - must be 'api-token' or 'oidc'"
+      exit 1
+      ;;
+  esac
+
+  # For api-token auth, ensure token is available
+  if [[ "$auth_method" == "api-token" ]]; then
+    local api_token="${BUILDKITE_PLUGIN_DOCKER_CACHE_BUILDKITE_API_TOKEN:-}"
+    if [[ -z "$api_token" ]] && [[ -z "${BUILDKITE_API_TOKEN:-}" ]]; then
+      log_error "API token is required for api-token authentication"
+      log_info "Set it via the 'buildkite.api-token' parameter or BUILDKITE_API_TOKEN environment variable"
+      exit 1
+    fi
+  fi
+
+  # Validate organization slug format if provided
+  local org_slug="${BUILDKITE_PLUGIN_DOCKER_CACHE_BUILDKITE_ORG_SLUG:-${BUILDKITE_ORGANIZATION_SLUG:-}}"
+  if [[ -n "$org_slug" ]]; then
+    if [[ ! "$org_slug" =~ ^[a-z0-9][a-z0-9-]*[a-z0-9]$ ]] || [[ ${#org_slug} -lt 3 ]] || [[ ${#org_slug} -gt 63 ]]; then
+      log_error "invalid organization slug '${org_slug}' - must be 3-63 characters, start and end with alphanumeric, contain only lowercase letters, numbers, and hyphens"
+      exit 1
+    fi
+  fi
+
+  # Validate registry slug format if provided
+  if [[ -n "${BUILDKITE_PLUGIN_DOCKER_CACHE_BUILDKITE_REGISTRY_SLUG:-}" ]]; then
+    local registry_slug="${BUILDKITE_PLUGIN_DOCKER_CACHE_BUILDKITE_REGISTRY_SLUG}"
+    if [[ ! "$registry_slug" =~ ^[a-z0-9][a-z0-9-]*[a-z0-9]$ ]] || [[ ${#registry_slug} -lt 3 ]] || [[ ${#registry_slug} -gt 63 ]]; then
+      log_error "invalid registry slug '${registry_slug}' - must be 3-63 characters, start and end with alphanumeric, contain only lowercase letters, numbers, and hyphens"
       exit 1
     fi
   fi
