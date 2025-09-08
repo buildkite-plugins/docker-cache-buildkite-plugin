@@ -338,3 +338,136 @@ setup() {
 
   unstub aws
 }
+
+@test "Pre-command hook runs cache operations with Buildkite provider" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='buildkite'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE='test-image'
+  export BUILDKITE_ORGANIZATION_SLUG='my-org'
+  export BUILDKITE_API_TOKEN='fake-token'
+
+  # N.B: Using function override instead of stub for buildkite-agent and docker 
+  # commands to handle complex authentication and build scenarios
+  function buildkite-agent() {
+    return 0
+  }
+  
+  function docker() {
+    case "$1" in
+      login)
+        if [[ "$2" == "packages.buildkite.com/my-org/test-image" ]]; then
+          echo "Login Succeeded"
+          return 0
+        fi
+        ;;
+      build)
+        if [[ "$*" =~ "--cache-from" ]]; then
+          echo "Successfully built with cache layers abc123"
+        else
+          echo "Successfully built abc123"
+        fi
+        return 0
+        ;;
+      tag)
+        return 0
+        ;;
+      *)
+        command docker "$@"
+        ;;
+    esac
+  }
+  export -f buildkite-agent docker
+
+  run "$PWD"/hooks/pre-command
+
+  assert_success
+  assert_output --partial 'Docker cache build'
+  assert_output --partial 'Buildkite registry URL'
+}
+
+@test "Buildkite provider with OIDC authentication works" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='buildkite'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE='test-image'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_BUILDKITE_AUTH_METHOD='oidc'
+  export BUILDKITE_ORGANIZATION_SLUG='my-org'
+
+  function buildkite-agent() {
+    if [[ "$1" == "oidc" && "$2" == "request-token" ]]; then
+      echo "fake-oidc-token"
+      return 0
+    fi
+    return 0
+  }
+  
+  function docker() {
+    case "$1" in
+      login)
+        if [[ "$2" == "packages.buildkite.com/my-org/test-image" ]]; then
+          cat > /dev/null  # Read token from stdin
+          echo "Login Succeeded"
+          return 0
+        fi
+        ;;
+      build)
+        if [[ "$*" =~ "--cache-from" ]]; then
+          echo "Successfully built with cache layers abc123"
+        else
+          echo "Successfully built abc123"
+        fi
+        return 0
+        ;;
+      tag)
+        return 0
+        ;;
+      *)
+        command docker "$@"
+        ;;
+    esac
+  }
+  export -f buildkite-agent docker
+
+  run "$PWD"/hooks/pre-command
+
+  assert_success
+  assert_output --partial 'Docker cache build'
+  assert_output --partial 'Authentication method: oidc'
+  assert_output --partial 'Successfully authenticated with Buildkite Packages using OIDC'
+}
+
+@test "Buildkite provider handles cache hit with artifact strategy" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='buildkite'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE='test-app'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_STRATEGY='artifact'
+  export BUILDKITE_ORGANIZATION_SLUG='my-org'
+  export BUILDKITE_API_TOKEN='fake-token'
+
+  function buildkite-agent() { return 0; }
+  
+  function docker() {
+    case "$1" in
+      login)
+        echo "Login Succeeded"
+        return 0
+        ;;
+      manifest)
+        echo '{"schemaVersion": 2, "mediaType": "application/vnd.docker.distribution.manifest.v2+json"}'
+        return 0
+        ;;
+      pull)
+        return 0
+        ;;
+      tag)
+        return 0
+        ;;
+      *)
+        command docker "$@"
+        ;;
+    esac
+  }
+  export -f buildkite-agent docker
+
+  run "$PWD"/hooks/pre-command
+
+  assert_success
+  assert_output --partial 'Docker cache build'
+  assert_output --partial 'Complete cache hit'
+}

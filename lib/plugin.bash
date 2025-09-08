@@ -53,6 +53,8 @@ plugin_read_config
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/providers/ecr.bash"
 # shellcheck source=lib/providers/gar.bash
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/providers/gar.bash"
+# shellcheck source=lib/providers/buildkite.bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/providers/buildkite.bash"
 
 if [[ "${BUILDKITE_PLUGIN_DOCKER_CACHE_VERBOSE:-false}" == "true" ]]; then
   set -x
@@ -66,6 +68,9 @@ setup_provider_environment() {
       ;;
     gar)
       setup_gar_environment
+      ;;
+    buildkite)
+      setup_buildkite_environment
       ;;
     *)
       unknown_provider "${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}"
@@ -134,6 +139,9 @@ restore_cache() {
     gar)
       restore_gar_cache
       ;;
+    buildkite)
+      restore_buildkite_cache
+      ;;
     *)
       unknown_provider "${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}"
       ;;
@@ -156,6 +164,9 @@ save_cache() {
       ;;
     gar)
       save_gar_cache
+      ;;
+    buildkite)
+      save_buildkite_cache
       ;;
     *)
       unknown_provider "${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}"

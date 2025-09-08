@@ -1,10 +1,10 @@
 # Docker Cache Buildkite Plugin [![Build status](https://badge.buildkite.com/a3851ab6b8e918f7a29d1d43fd8a410308fd5a50455b8a4ab3.svg)](https://buildkite.com/buildkite/plugins-docker-cache)
 
-A [Buildkite plugin](https://buildkite.com/docs/agent/v3/plugins) for caching [Docker](https://docker.com) images across builds using various registry providers (ECR and GAR currently supported).
+A [Buildkite plugin](https://buildkite.com/docs/agent/v3/plugins) for caching [Docker](https://docker.com) images across builds using various registry providers (ECR, GAR, and Buildkite Packages currently supported).
 
-This plugin speeds up your Docker builds by caching images between pipeline runs. Instead of rebuilding the same Docker image every time, it stores built images in ECR or Google Artifact Registry and reuses them when nothing has changed.
+This plugin speeds up your Docker builds by caching images between pipeline runs. Instead of rebuilding the same Docker image every time, it stores built images in ECR, Google Artifact Registry, or Buildkite Packages and reuses them when nothing has changed.
 
-The plugin will check if a cached version of your image already exists. If it does, it pulls that instead of rebuilding. If not, it builds the image and saves it for next time. It automatically creates the necessary repositories in your registry if they don't exist.
+The plugin will check if a cached version of your image already exists. If it does, it pulls that instead of rebuilding. If not, it builds the image and saves it for next time. It automatically creates the necessary repositories in your registry if they don't exist (ECR and GAR only - Buildkite Packages registries are managed through the UI).
 
 Cache keys are generated based on your Dockerfile content and build context, so the cache automatically invalidates when you make changes to your code or build configuration.
 
@@ -44,6 +44,37 @@ steps:
           gar:
             project: my-gcp-project
             region: us
+```
+
+### Buildkite Packages Provider
+
+The following pipeline will cache Docker builds in Buildkite Packages Container Registry:
+
+```yaml
+steps:
+  - label: "🐳 Build with Buildkite Packages cache"
+    command: "echo 'Building with cache'"
+    plugins:
+      - docker-cache#v1.0.0:
+          provider: buildkite
+          image: my-app
+          buildkite:
+            org-slug: my-org
+```
+
+#### With OIDC Authentication
+
+```yaml
+steps:
+  - label: "🐳 Build with Buildkite Packages cache (OIDC)"
+    command: "echo 'Building with cache'"
+    plugins:
+      - docker-cache#v1.0.0:
+          provider: buildkite
+          image: my-app
+          buildkite:
+            org-slug: my-org
+            auth-method: oidc
 ```
 
 ### Cache Strategies
@@ -139,13 +170,15 @@ steps:
 
 ## Configuration
 
+These are all the options available to configure this plugin's behaviour.
+
 ### Required
 
-#### `provider` (required, string)
+#### `provider` (string)
 
-Which registry provider to use for caching: `ecr` or `gar`.
+Which registry provider to use for caching. Supported values: `ecr`, `gar`, `buildkite`.
 
-#### `image` (required, string)
+#### `image` (string)
 
 Name of your Docker image.
 
@@ -153,7 +186,7 @@ Example: `my-app`
 
 ### Optional
 
-#### `strategy` (optional, string)
+#### `strategy` (string, default: `hybrid`)
 
 How to use the cache:
 
@@ -161,117 +194,97 @@ How to use the cache:
 - `build`: Use layer caching during build process
 - `hybrid`: Try artifact strategy first, fall back to build strategy if pull fails
 
-Default: `hybrid`
-
-#### `dockerfile` (optional, string)
+#### `dockerfile` (string, default: `Dockerfile`)
 
 Path to your Dockerfile.
 
-Default: `Dockerfile`
-
-#### `dockerfile-inline` (optional, string)
+#### `dockerfile-inline` (string)
 
 Inline Dockerfile content instead of reading from a file.
 
-#### `context` (optional, string)
+#### `context` (string, default: `.`)
 
 Docker build context path.
 
-Default: `.`
-
-#### `target` (optional, string)
+#### `target` (string)
 
 Target stage for multi-stage builds.
 
-#### `build-args` (optional, array)
+#### `build-args` (array)
 
 Build arguments to pass to Docker.
 
 Example: `["NODE_ENV=production", "VERSION=1.0.0"]`
 
-#### `additional-build-args` (optional, string)
+#### `additional-build-args` (string)
 
 Additional docker build arguments as a single string.
 
 Example: `"--network=host --build-arg CUSTOM_ARG=value"`
 
-#### `secrets` (optional, array)
+#### `secrets` (array)
 
 Build secrets to pass to Docker (requires BuildKit).
 
 Example: `["id=mysecret,src=/local/secret", "id=mypassword"]`
 
-#### `cache-from` (optional, array)
+#### `cache-from` (array)
 
 Additional cache sources for Docker build.
 
 Example: `["my-base-image:latest"]`
 
-#### `skip-pull-from-cache` (optional, boolean)
+#### `skip-pull-from-cache` (boolean, default: `false`)
 
 Skip pulling from cache (useful for testing).
 
-Default: `false`
-
-#### `save` (optional, boolean)
+#### `save` (boolean, default: `true`)
 
 Whether to save cache after build.
 
-Default: `true`
-
-#### `restore` (optional, boolean)
+#### `restore` (boolean, default: `true`)
 
 Whether to restore cache before build.
 
-Default: `true`
-
-#### `max-age-days` (optional, number)
+#### `max-age-days` (number, default: `30`)
 
 Maximum age in days for cached images.
 
-Default: `30`
-
-#### `cache-key` (optional, string or array)
+#### `cache-key` (string or array)
 
 Custom cache key. If not provided, automatically generated from Dockerfile content and build context.
 
 Example: `["my-key", "v1.0"]` or `"custom-key"`
 
-#### `export-env-variable` (optional, string)
+#### `export-env-variable` (string, default: `BUILDKITE_PLUGIN_DOCKER_IMAGE`)
 
 Environment variable name for exporting the final image reference.
 
-Default: `BUILDKITE_PLUGIN_DOCKER_IMAGE`
-
-#### `verbose` (optional, boolean)
+#### `verbose` (boolean, default: `false`)
 
 Enable verbose logging.
 
-Default: `false`
+#### `tag` (string)
 
-#### `tag` (optional, string)
-
-Custom tag for the cached image.
-
-Default: Generated from git commit or pipeline context
+Custom tag for the cached image. If not provided, generated from git commit or pipeline context.
 
 ### ECR Provider Options
 
 When using `provider: ecr`, these options are available:
 
-#### `ecr.region` (required, string)
+#### `ecr.region` (string)
 
-AWS region for ECR registry.
+AWS region for ECR registry. If not provided, will be auto-detected from AWS configuration.
 
 Example: `us-east-1`
 
-#### `ecr.account-id` (required, string)
+#### `ecr.account-id` (string)
 
-AWS account ID (12 digits).
+AWS account ID (12 digits). If not provided, will be auto-detected from AWS credentials.
 
 Example: `123456789012`
 
-#### `ecr.registry-url` (optional, string)
+#### `ecr.registry-url` (string)
 
 Custom ECR registry URL. If not provided, will be constructed from account ID and region.
 
@@ -279,15 +292,17 @@ Example: `123456789012.dkr.ecr.us-east-1.amazonaws.com`
 
 ### GAR Provider Options
 
+**Note:** Authentication is handled by the `gcloud` CLI. Ensure your Buildkite agent has authenticated with Google Cloud before running this plugin (e.g., using a service account key or Workload Identity Federation).
+
 When using `provider: gar`, these options are available:
 
-#### `gar.project` (required, string)
+#### `gar.project` (string, required)
 
 Google Cloud project ID.
 
 Example: `my-gcp-project`
 
-#### `gar.region` (required, string)
+#### `gar.region` (string, default: `us`)
 
 GAR region.
 
@@ -295,11 +310,40 @@ Valid values: `us`, `europe`, `asia`, or specific regional endpoints like `us-ce
 
 Example: `us`
 
-#### `gar.repository` (optional, string)
+#### `gar.repository` (string)
 
 Artifact Registry repository name. If not provided, defaults to the image name.
 
 Example: `docker` (for repository name, results in full path like `us-docker.pkg.dev/project/docker/image`)
+
+### Buildkite Packages Provider Options
+
+**Note:** Authentication requires either a Buildkite API token with Read Packages and Write Packages scopes, or OIDC authentication using `buildkite-agent` (available in Buildkite pipeline jobs).
+
+When using `provider: buildkite`, these options are available:
+
+#### `buildkite.org-slug` (string)
+
+Buildkite organization slug. If omitted, it will use the `BUILDKITE_ORGANIZATION_SLUG` environment variable.
+
+Example: `my-org`
+
+#### `buildkite.registry-slug` (string)
+
+Container registry slug. If omitted, it defaults to the image name.
+
+Example: `docker-images`
+
+#### `buildkite.auth-method` (string, default: `api-token`)
+
+Authentication method to use. Supported values: `api-token`, `oidc`.
+
+- `api-token`: Uses the `api-token` parameter or falls back to `BUILDKITE_API_TOKEN` environment variable
+- `oidc`: Uses `buildkite-agent oidc request-token` command (available in pipeline jobs)
+
+#### `buildkite.api-token` (string)
+
+Buildkite API token with Read Packages and Write Packages scopes. Required when `auth-method` is `api-token`. Can also be provided via the `BUILDKITE_API_TOKEN` environment variable for backward compatibility.
 
 ## Authentication
 
@@ -341,6 +385,49 @@ Required permissions:
 - `artifactregistry.docker.images.push`
 - `artifactregistry.docker.images.pull`
 
+### Buildkite Packages Authentication
+
+The plugin supports two authentication methods for Buildkite Packages:
+
+#### API Token Authentication (Default)
+
+Uses a Buildkite API token with Read Packages and Write Packages scopes:
+
+```yaml
+plugins:
+  - docker-cache#v1.0.0:
+      provider: buildkite
+      image: my-app
+      buildkite:
+        org-slug: my-org
+        api-token: $BUILDKITE_API_TOKEN
+```
+
+Or set the `BUILDKITE_API_TOKEN` environment variable in your build environment.
+
+Required token scopes:
+- `read_packages` - To pull cached images
+- `write_packages` - To push new cache images
+
+#### OIDC Authentication
+
+Uses buildkite-agent OIDC tokens for passwordless authentication:
+
+```yaml
+plugins:
+  - docker-cache#v1.0.0:
+      provider: buildkite
+      image: my-app
+      buildkite:
+        org-slug: my-org
+        auth-method: oidc
+```
+
+OIDC authentication requires:
+- buildkite-agent v3.38.0 or later
+- Proper OIDC policy configuration in your Buildkite organization
+- Pipeline access to the target registry
+
 ## Cache Key Generation
 
 Cache keys are automatically generated from:
@@ -352,15 +439,19 @@ Cache keys are automatically generated from:
 
 This ensures the cache is invalidated whenever anything that affects the build changes.
 
+## Compatibility
+
+| Elastic Stack | Agent Stack K8s | Hosted (Mac) | Hosted (Linux) | Notes |
+| :-----------: | :-------------: | :----------: | :------------: |:---- |
+| ✅ |  ✅ | ❌ | ✅ | **ECR** – Requires `awscli`<br/>**GAR** – Requires `gcloud`<br/>**Hosted (Mac)** – Docker engine not available |
+
+- ✅ Fully supported (all combinations of attributes have been tested to pass)
+- ⚠️ Partially supported (some combinations cause errors/issues)
+- ❌ Not supported
+
 ## Developing
 
-To run testing, shellchecks and plugin linting use `bk run` with the [Buildkite CLI](https://github.com/buildkite/cli).
-
-```bash
-bk run
-```
-
-Or if you want to run just the tests, you can use the docker [Plugin Tester](https://github.com/buildkite-plugins/buildkite-plugin-tester):
+To run tests, you can use the docker [Plugin Tester](https://github.com/buildkite-plugins/buildkite-plugin-tester):
 
 ```bash
 docker run --rm -ti -v "${PWD}":/plugin buildkite/plugin-tester:latest
