@@ -1,8 +1,8 @@
 # Docker Cache Buildkite Plugin [![Build status](https://badge.buildkite.com/a3851ab6b8e918f7a29d1d43fd8a410308fd5a50455b8a4ab3.svg)](https://buildkite.com/buildkite/plugins-docker-cache)
 
-A [Buildkite plugin](https://buildkite.com/docs/agent/v3/plugins) for caching [Docker](https://docker.com) images across builds using various registry providers (ECR, GAR, and Buildkite Packages currently supported).
+A [Buildkite plugin](https://buildkite.com/docs/agent/v3/plugins) for caching [Docker](https://docker.com) images across builds using various registry providers (ECR, GAR, Buildkite Packages, and Artifactory Docker Registry currently supported).
 
-This plugin speeds up your Docker builds by caching images between pipeline runs. Instead of rebuilding the same Docker image every time, it stores built images in ECR, Google Artifact Registry, or Buildkite Packages and reuses them when nothing has changed.
+This plugin speeds up your Docker builds by caching images between pipeline runs. Instead of rebuilding the same Docker image every time, it stores built images in ECR, Google Artifact Registry, Buildkite Packages, or Artifactory Docker Registry and reuses them when nothing has changed.
 
 The plugin will check if a cached version of your image already exists. If it does, it pulls that instead of rebuilding. If not, it builds the image and saves it for next time. It automatically creates the necessary repositories in your registry if they don't exist (ECR and GAR only - Buildkite Packages registries are managed through the UI).
 
@@ -75,6 +75,24 @@ steps:
           buildkite:
             org-slug: my-org
             auth-method: oidc
+```
+
+### Artifactory Docker Registry Provider
+
+The following pipeline will cache Docker builds in Artifactory Docker Registry:
+
+```yaml
+steps:
+  - label: "🐳 Build with Artifactory cache"
+    command: "echo 'Building with cache'"
+    plugins:
+      - docker-cache#v1.0.0:
+          provider: artifactory
+          image: my-app
+          artifactory:
+            registry-url: myjfroginstance.jfrog.io
+            username: me@example.com
+            identity-token: $ARTIFACTORY_IDENTITY_TOKEN
 ```
 
 ### Cache Strategies
@@ -176,7 +194,7 @@ These are all the options available to configure this plugin's behaviour.
 
 #### `provider` (string)
 
-Which registry provider to use for caching. Supported values: `ecr`, `gar`, `buildkite`.
+Which registry provider to use for caching. Supported values: `ecr`, `gar`, `buildkite`, `artifactory`.
 
 #### `image` (string)
 
@@ -345,6 +363,28 @@ Authentication method to use. Supported values: `api-token`, `oidc`.
 
 Buildkite API token with Read Packages and Write Packages scopes. Required when `auth-method` is `api-token`. Can also be provided via the `BUILDKITE_API_TOKEN` environment variable for backward compatibility.
 
+### Artifactory Provider Options
+
+**Note:** Authentication requires a username (typically email) and identity token from your Artifactory instance.
+
+When using `provider: artifactory`, these options are available:
+
+#### `artifactory.registry-url` (string, required)
+
+The Artifactory registry URL (e.g., `myjfroginstance.jfrog.io`). Do not include the protocol (`https://`).
+
+#### `artifactory.username` (string, required)
+
+The username for Artifactory authentication, typically your email address.
+
+#### `artifactory.identity-token` (string, required)
+
+The Artifactory identity token for authentication. Can reference an environment variable using `$VARIABLE_NAME` syntax.
+
+#### `artifactory.repository` (string)
+
+Artifactory repository name. If omitted, defaults to the image name.
+
 ## Authentication
 
 ### ECR Authentication
@@ -428,6 +468,7 @@ OIDC authentication requires:
 - Proper OIDC policy configuration in your Buildkite organization
 - Pipeline access to the target registry
 
+
 ## Cache Key Generation
 
 Cache keys are automatically generated from:
@@ -443,7 +484,7 @@ This ensures the cache is invalidated whenever anything that affects the build c
 
 | Elastic Stack | Agent Stack K8s | Hosted (Mac) | Hosted (Linux) | Notes |
 | :-----------: | :-------------: | :----------: | :------------: |:---- |
-| ✅ |  ✅ | ❌ | ✅ | **ECR** – Requires `awscli`<br/>**GAR** – Requires `gcloud`<br/>**Hosted (Mac)** – Docker engine not available |
+| ✅ |  ✅ | ❌ | ✅ | **ECR** – Requires `awscli`<br/>**GAR** – Requires `gcloud`<br/>**Buildkite Packages** – Requires `docker`<br/>**Artifactory** – Requires `docker`<br/>**Hosted (Mac)** – Docker engine not available |
 
 - ✅ Fully supported (all combinations of attributes have been tested to pass)
 - ⚠️ Partially supported (some combinations cause errors/issues)

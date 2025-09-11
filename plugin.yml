@@ -1,5 +1,5 @@
 name: Docker-Cache
-description: Cache Docker images across builds using various registry providers (ECR, GAR, and Buildkite Packages currently supported)
+description: Cache Docker images across builds using various registry providers (ECR, GAR, Buildkite Packages, and Artifactory Docker Registry currently supported)
 author: https://github.com/buildkite-plugins
 requirements:
   - bash
@@ -8,7 +8,7 @@ configuration:
   properties:
     provider:
       type: string
-      enum: [ecr, gar, buildkite]
+      enum: [ecr, gar, buildkite, artifactory]
       description: Registry provider type
     image:
       type: string
@@ -119,6 +119,27 @@ configuration:
         api-token:
           type: string
           description: Buildkite API token with Read Packages and Write Packages scopes (required when auth-method is api-token)
+      additionalProperties: false
+    artifactory:
+      type: object
+      description: Artifactory Docker Registry configuration
+      properties:
+        registry-url:
+          type: string
+          description: Artifactory registry URL (e.g., "myjfroginstance.jfrog.io")
+        username:
+          type: string
+          description: Username (typically email address) for Artifactory authentication
+        identity-token:
+          type: string
+          description: Artifactory identity token for authentication
+        repository:
+          type: string
+          description: Artifactory repository name (defaults to the image name when omitted)
+      required:
+        - registry-url
+        - username
+        - identity-token
       additionalProperties: false
     verbose:
       type: boolean

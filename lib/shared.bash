@@ -30,6 +30,37 @@ unknown_provider() {
   exit 1
 }
 
+# Expand environment variables from plugin configuration values
+# Usage: expand_env_var "raw_value" "parameter_name"
+# Returns: expanded value or exits with error if variable is missing/empty
+expand_env_var() {
+  local raw_value="$1"
+  local param_name="$2"
+  local result
+
+  # shellcheck disable=SC2016
+  case "${raw_value}" in
+  '$'*)
+    local var_name="${raw_value#$}"
+    if [[ -v "${var_name}" ]]; then
+      result="${!var_name}"
+      if [[ -z "$result" ]]; then
+        log_error "Environment variable '${var_name}' referenced by ${param_name} parameter is empty or not set"
+        exit 1
+      fi
+    else
+      log_error "Environment variable '${var_name}' referenced by ${param_name} parameter is empty or not set"
+      exit 1
+    fi
+    ;;
+  *)
+    result="${raw_value}"
+    ;;
+  esac
+
+  echo "$result"
+}
+
 check_dependencies() {
   local missing_deps=()
 
@@ -52,6 +83,9 @@ check_dependencies() {
       if ! command_exists buildkite-agent; then
         missing_deps+=("buildkite-agent")
       fi
+      ;;
+    artifactory)
+      # Artifactory only requires Docker, which is already checked above
       ;;
   esac
 
@@ -77,6 +111,10 @@ build_cache_image_name() {
       ;;
     buildkite)
       echo "${BUILDKITE_PLUGIN_DOCKER_CACHE_BUILDKITE_REGISTRY_URL}/${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_TAG:-cache}-${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}"
+      ;;
+    artifactory)
+      local repository="${BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REPOSITORY:-${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}}"
+      echo "${BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REGISTRY_URL}/${repository}/${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_TAG:-cache}-${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}"
       ;;
     *)
       log_error "Unknown provider: ${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}"

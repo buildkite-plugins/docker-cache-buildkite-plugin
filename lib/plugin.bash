@@ -55,6 +55,8 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/providers/ecr.bash"
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/providers/gar.bash"
 # shellcheck source=lib/providers/buildkite.bash
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/providers/buildkite.bash"
+# shellcheck source=lib/providers/artifactory.bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/providers/artifactory.bash"
 
 if [[ "${BUILDKITE_PLUGIN_DOCKER_CACHE_VERBOSE:-false}" == "true" ]]; then
   set -x
@@ -71,6 +73,9 @@ setup_provider_environment() {
       ;;
     buildkite)
       setup_buildkite_environment
+      ;;
+    artifactory)
+      setup_artifactory_environment
       ;;
     *)
       unknown_provider "${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}"
@@ -142,6 +147,9 @@ restore_cache() {
     buildkite)
       restore_buildkite_cache
       ;;
+    artifactory)
+      restore_artifactory_cache
+      ;;
     *)
       unknown_provider "${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}"
       ;;
@@ -167,6 +175,9 @@ save_cache() {
       ;;
     buildkite)
       save_buildkite_cache
+      ;;
+    artifactory)
+      save_artifactory_cache
       ;;
     *)
       unknown_provider "${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}"

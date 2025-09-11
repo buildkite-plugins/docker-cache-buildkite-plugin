@@ -309,6 +309,235 @@ setup() {
   assert_output --partial 'Successfully authenticated with Buildkite Packages using OIDC'
 }
 
+@test "Artifactory provider requires registry URL" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='artifactory'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_USERNAME='test@example.com'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_IDENTITY_TOKEN='test-token'
+  unset BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REGISTRY_URL
+
+  run "$PWD"/hooks/environment
+  assert_failure
+  assert_output --partial 'Artifactory registry URL is required'
+  assert_output --partial "Set it via the 'artifactory.registry-url' parameter"
+}
+
+@test "Artifactory provider requires username" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='artifactory'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REGISTRY_URL='test.jfrog.io'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_IDENTITY_TOKEN='test-token'
+  unset BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_USERNAME
+
+  run "$PWD"/hooks/environment
+  assert_failure
+  assert_output --partial 'Artifactory username is required'
+  assert_output --partial "Set it via the 'artifactory.username' parameter"
+}
+
+@test "Artifactory provider requires identity token" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='artifactory'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REGISTRY_URL='test.jfrog.io'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_USERNAME='test@example.com'
+  unset BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_IDENTITY_TOKEN
+
+  run "$PWD"/hooks/environment
+  assert_failure
+  assert_output --partial 'Artifactory identity token is required'
+  assert_output --partial "Set it via the 'artifactory.identity-token' parameter"
+}
+
+@test "Artifactory provider validates registry URL format" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='artifactory'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REGISTRY_URL='invalid@url'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_USERNAME='test@example.com'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_IDENTITY_TOKEN='test-token'
+
+  run "$PWD"/hooks/environment
+  assert_failure
+  assert_output --partial 'invalid Artifactory registry URL'
+  assert_output --partial 'must be a valid hostname'
+}
+
+@test "Artifactory provider strips https protocol from registry URL" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='artifactory'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REGISTRY_URL='https://test.jfrog.io'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_USERNAME='test@example.com'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_IDENTITY_TOKEN='test-token'
+
+  function docker() {
+    if [[ "$1" == "login" && "$2" == "test.jfrog.io" ]]; then
+      return 0
+    fi
+    return 1
+  }
+  export -f docker
+
+  run "$PWD"/hooks/environment
+  assert_success # Should succeed with mocked docker
+  assert_output --partial 'Artifactory registry URL: test.jfrog.io'
+}
+
+@test "Artifactory provider strips http protocol from registry URL" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='artifactory'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REGISTRY_URL='http://test.jfrog.io'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_USERNAME='test@example.com'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_IDENTITY_TOKEN='test-token'
+
+  function docker() {
+    if [[ "$1" == "login" && "$2" == "test.jfrog.io" ]]; then
+      return 0
+    fi
+    return 1
+  }
+  export -f docker
+
+  run "$PWD"/hooks/environment
+  assert_success # Should succeed with mocked docker
+  assert_output --partial 'Artifactory registry URL: test.jfrog.io'
+}
+
+@test "Artifactory provider validates repository name format" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='artifactory'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REGISTRY_URL='test.jfrog.io'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_USERNAME='test@example.com'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_IDENTITY_TOKEN='test-token'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REPOSITORY='Invalid@Repository'
+
+  run "$PWD"/hooks/environment
+  assert_failure
+  assert_output --partial 'invalid Artifactory repository name'
+  assert_output --partial 'must contain only lowercase letters'
+}
+
+@test "Artifactory provider accepts valid configuration" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='artifactory'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REGISTRY_URL='test.jfrog.io'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_USERNAME='test@example.com'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_IDENTITY_TOKEN='test-token'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REPOSITORY='docker-repo'
+
+  function docker() {
+    if [[ "$1" == "login" && "$2" == "test.jfrog.io" ]]; then
+      return 0
+    fi
+    return 1
+  }
+  export -f docker
+
+  run "$PWD"/hooks/environment
+  assert_success
+  assert_output --partial 'Artifactory username: test@example.com'
+  assert_output --partial 'Successfully authenticated with Artifactory'
+}
+
+@test "Artifactory provider processes environment variable token" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='artifactory'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REGISTRY_URL='test.jfrog.io'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_USERNAME='test@example.com'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_IDENTITY_TOKEN='$TEST_TOKEN'
+  export TEST_TOKEN='actual-token-value'
+
+  function docker() {
+    if [[ "$1" == "login" && "$2" == "test.jfrog.io" ]]; then
+      return 0
+    fi
+    return 1
+  }
+  export -f docker
+
+  run "$PWD"/hooks/environment
+  assert_success
+  assert_output --partial 'Authenticating with Artifactory Docker registry'
+}
+
+@test "Artifactory provider fails when environment variable is empty" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='artifactory'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REGISTRY_URL='test.jfrog.io'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_USERNAME='test@example.com'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_IDENTITY_TOKEN='$EMPTY_TOKEN'
+  unset EMPTY_TOKEN
+
+  run "$PWD"/hooks/environment
+  assert_failure
+  assert_output --partial "Environment variable 'EMPTY_TOKEN' referenced by identity-token parameter is empty or not set"
+}
+
+@test "Artifactory provider processes environment variable username" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='artifactory'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REGISTRY_URL='test.jfrog.io'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_USERNAME='$TEST_USERNAME'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_IDENTITY_TOKEN='test-token'
+  export TEST_USERNAME='test@example.com'
+
+  function docker() {
+    if [[ "$1" == "login" && "$2" == "test.jfrog.io" ]]; then
+      return 0
+    fi
+    return 1
+  }
+  export -f docker
+
+  run "$PWD"/hooks/environment
+  assert_success
+  assert_output --partial 'Artifactory username: test@example.com'
+}
+
+@test "Artifactory provider processes environment variable registry URL" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='artifactory'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REGISTRY_URL='$TEST_REGISTRY'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_USERNAME='test@example.com'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_IDENTITY_TOKEN='test-token'
+  export TEST_REGISTRY='myregistry.jfrog.io'
+
+  function docker() {
+    if [[ "$1" == "login" && "$2" == "myregistry.jfrog.io" ]]; then
+      return 0
+    fi
+    return 1
+  }
+  export -f docker
+
+  run "$PWD"/hooks/environment
+  assert_success
+  assert_output --partial 'Artifactory registry URL: myregistry.jfrog.io'
+}
+
+@test "expand_env_var function processes environment variable correctly" {
+  # Load the plugin library for testing
+  source "$PWD/lib/shared.bash"
+
+  export TEST_VAR="test-value"
+  result=$(expand_env_var '$TEST_VAR' "test-param")
+  assert [ "$result" = "test-value" ]
+}
+
+@test "expand_env_var function returns literal values unchanged" {
+  # Load the plugin library for testing
+  source "$PWD/lib/shared.bash"
+
+  result=$(expand_env_var "literal-value" "test-param")
+  assert [ "$result" = "literal-value" ]
+}
+
+@test "expand_env_var function fails on undefined variable" {
+  # Load the plugin library for testing
+  source "$PWD/lib/shared.bash"
+
+  unset UNDEFINED_VAR
+  run expand_env_var '$UNDEFINED_VAR' "test-param"
+  assert_failure
+  assert_output --partial "Environment variable 'UNDEFINED_VAR' referenced by test-param parameter is empty or not set"
+}
+
+@test "expand_env_var function fails on empty variable" {
+  # Load the plugin library for testing
+  source "$PWD/lib/shared.bash"
+
+  export EMPTY_VAR=""
+  run expand_env_var '$EMPTY_VAR' "test-param"
+  assert_failure
+  assert_output --partial "Environment variable 'EMPTY_VAR' referenced by test-param parameter is empty or not set"
+}
+
 @test "generate_cache_key creates hash from Dockerfile" {
   # Load the plugin library for testing
   source "$PWD/lib/plugin.bash"
