@@ -25,11 +25,11 @@ main() {
 
   # Validate provider
   case "${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}" in
-    ecr|gar|buildkite)
+    ecr|gar|buildkite|artifactory)
       ;;
     *)
       log_error "unsupported provider '${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}'"
-      log_info "Supported providers: ecr, gar, buildkite"
+      log_info "Supported providers: ecr, gar, buildkite, artifactory"
       exit 1
       ;;
   esac
@@ -50,6 +50,9 @@ main() {
       ;;
     buildkite)
       validate_buildkite_config
+      ;;
+    artifactory)
+      validate_artifactory_config
       ;;
   esac
 
@@ -205,6 +208,53 @@ validate_buildkite_config() {
     local registry_slug="${BUILDKITE_PLUGIN_DOCKER_CACHE_BUILDKITE_REGISTRY_SLUG}"
     if [[ ! "$registry_slug" =~ ^[a-z0-9][a-z0-9-]*[a-z0-9]$ ]] || [[ ${#registry_slug} -lt 3 ]] || [[ ${#registry_slug} -gt 63 ]]; then
       log_error "invalid registry slug '${registry_slug}' - must be 3-63 characters, start and end with alphanumeric, contain only lowercase letters, numbers, and hyphens"
+      exit 1
+    fi
+  fi
+}
+
+validate_artifactory_config() {
+  # Validate registry URL is provided
+  if [[ -z "${BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REGISTRY_URL:-}" ]]; then
+    log_error "Artifactory registry URL is required"
+    log_info "Set it via the 'artifactory.registry-url' parameter"
+    exit 1
+  fi
+
+  # Validate username is provided
+  if [[ -z "${BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_USERNAME:-}" ]]; then
+    log_error "Artifactory username is required"
+    log_info "Set it via the 'artifactory.username' parameter"
+    exit 1
+  fi
+
+  # Validate identity token is provided
+  if [[ -z "${BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_IDENTITY_TOKEN:-}" ]]; then
+    log_error "Artifactory identity token is required"
+    log_info "Set it via the 'artifactory.identity-token' parameter"
+    exit 1
+  fi
+
+  # Validate registry URL format (basic check for valid hostname)
+  # Skip validation for environment variable references (they'll be validated after expansion)
+  local registry_url_raw="${BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REGISTRY_URL}"
+  if [[ ! "$registry_url_raw" =~ ^\$ ]]; then
+    local registry_url="${registry_url_raw}"
+    # Remove http/https prefix for validation
+    registry_url="${registry_url#https://}"
+    registry_url="${registry_url#http://}"
+    
+    if [[ ! "$registry_url" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9]$ ]] || [[ ${#registry_url} -lt 3 ]] || [[ ${#registry_url} -gt 253 ]]; then
+      log_error "invalid Artifactory registry URL '${BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REGISTRY_URL}' - must be a valid hostname"
+      exit 1
+    fi
+  fi
+
+  # Validate repository name format if provided
+  if [[ -n "${BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REPOSITORY:-}" ]]; then
+    local repository="${BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REPOSITORY}"
+    if [[ ! "$repository" =~ ^[a-z0-9][a-z0-9._/-]*[a-z0-9]$ ]] || [[ ${#repository} -gt 255 ]]; then
+      log_error "invalid Artifactory repository name '${repository}' - must contain only lowercase letters, numbers, periods, underscores, hyphens, and slashes, max 255 characters"
       exit 1
     fi
   fi
