@@ -22,11 +22,27 @@ setup_acr_environment() {
   log_info "ACR registry URL: ${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_URL}"
 
   log_info "Authenticating with ACR..."
-  if az acr login --name "${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME}" >/dev/null 2>&1; then
+
+  # Use --expose-token to avoid Docker daemon dependency
+  # Extract access token using Azure CLI's --query parameter
+  local access_token
+  if ! access_token=$(az acr login --name "${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME}" --expose-token --output tsv --query accessToken 2>&1); then
+    log_error "Failed to get ACR access token"
+    log_info "Ensure you have the required permissions (AcrPull, AcrPush) and are authenticated with Azure"
+    exit 1
+  fi
+
+  if [[ -z "$access_token" ]]; then
+    log_error "ACR access token is empty"
+    exit 1
+  fi
+
+  # Login to Docker registry using the token
+  # ACR uses a special username (00000000-0000-0000-0000-000000000000) for token-based authentication
+  if echo "$access_token" | docker login "$registry_url" --username 00000000-0000-0000-0000-000000000000 --password-stdin >/dev/null 2>&1; then
     log_success "Successfully authenticated with ACR"
   else
-    log_error "Failed to authenticate with ACR"
-    log_info "Ensure you have the required permissions (AcrPull, AcrPush) and are authenticated with Azure"
+    log_error "Failed to authenticate Docker with ACR using access token"
     exit 1
   fi
 }

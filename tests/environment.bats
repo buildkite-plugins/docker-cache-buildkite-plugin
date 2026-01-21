@@ -604,12 +604,21 @@ setup() {
     export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME="$name"
 
     function az() {
-      if [[ "$1" == "acr" && "$2" == "login" ]]; then
+      if [[ "$1" == "acr" && "$2" == "login" && "$3" == "--name" && "$5" == "--expose-token" ]]; then
+        echo "fake-access-token-12345"
         return 0
       fi
       return 1
     }
     export -f az
+
+    function docker() {
+      if [[ "$1" == "login" ]]; then
+        return 0
+      fi
+      return 1
+    }
+    export -f docker
 
     run "$PWD"/hooks/environment
     assert_success
@@ -658,12 +667,21 @@ setup() {
     export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REPOSITORY="$repo"
 
     function az() {
-      if [[ "$1" == "acr" && "$2" == "login" ]]; then
+      if [[ "$1" == "acr" && "$2" == "login" && "$3" == "--name" && "$5" == "--expose-token" ]]; then
+        echo "fake-access-token-12345"
         return 0
       fi
       return 1
     }
     export -f az
+
+    function docker() {
+      if [[ "$1" == "login" ]]; then
+        return 0
+      fi
+      return 1
+    }
+    export -f docker
 
     run "$PWD"/hooks/environment
     assert_success
@@ -675,12 +693,21 @@ setup() {
   export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME='myregistry'
 
   function az() {
-    if [[ "$1" == "acr" && "$2" == "login" ]]; then
+    if [[ "$1" == "acr" && "$2" == "login" && "$3" == "--name" && "$5" == "--expose-token" ]]; then
+      echo "fake-access-token-12345"
       return 0
     fi
     return 1
   }
   export -f az
+
+  function docker() {
+    if [[ "$1" == "login" ]]; then
+      return 0
+    fi
+    return 1
+  }
+  export -f docker
 
   run "$PWD"/hooks/environment
   assert_success
