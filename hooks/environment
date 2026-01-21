@@ -25,11 +25,11 @@ main() {
 
   # Validate provider
   case "${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}" in
-    ecr|gar|buildkite|artifactory)
+    ecr|gar|buildkite|artifactory|acr)
       ;;
     *)
       log_error "unsupported provider '${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}'"
-      log_info "Supported providers: ecr, gar, buildkite, artifactory"
+      log_info "Supported providers: ecr, gar, buildkite, artifactory, acr"
       exit 1
       ;;
   esac
@@ -53,6 +53,9 @@ main() {
       ;;
     artifactory)
       validate_artifactory_config
+      ;;
+    acr)
+      validate_acr_config
       ;;
   esac
 
@@ -255,6 +258,37 @@ validate_artifactory_config() {
     local repository="${BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REPOSITORY}"
     if [[ ! "$repository" =~ ^[a-z0-9][a-z0-9._/-]*[a-z0-9]$ ]] || [[ ${#repository} -gt 255 ]]; then
       log_error "invalid Artifactory repository name '${repository}' - must contain only lowercase letters, numbers, periods, underscores, hyphens, and slashes, max 255 characters"
+      exit 1
+    fi
+  fi
+}
+
+validate_acr_config() {
+  # Validate registry name is provided
+  if [[ -z "${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME:-}" ]]; then
+    log_error "ACR registry name is required"
+    log_info "Set it via the 'acr.registry-name' parameter"
+    exit 1
+  fi
+
+  # Validate registry name format (5-50 alphanumeric, starts with letter)
+  local registry_name="${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME}"
+  if [[ ! "$registry_name" =~ ^[a-zA-Z][a-zA-Z0-9]{4,49}$ ]]; then
+    log_error "invalid ACR registry name '${registry_name}' - must be 5-50 alphanumeric characters, starting with a letter"
+    exit 1
+  fi
+
+  # Validate repository name format if provided
+  if [[ -n "${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REPOSITORY:-}" ]]; then
+    local repository="${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REPOSITORY}"
+    # Docker repository name rules: lowercase, separators, max 255 chars
+    if [[ ! "$repository" =~ ^[a-z0-9._/-]+$ ]] || [[ ${#repository} -gt 255 ]]; then
+      log_error "invalid ACR repository name '${repository}' - must contain only lowercase letters, numbers, periods, underscores, hyphens, and slashes, max 255 characters"
+      exit 1
+    fi
+    # No consecutive separators or start/end with separator
+    if [[ "$repository" =~ (^[._/-]|[._/-]$|[._/-]{2,}) ]]; then
+      log_error "invalid ACR repository name '${repository}' - cannot start/end with separators or have consecutive separators"
       exit 1
     fi
   fi

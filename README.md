@@ -1,10 +1,10 @@
 # Docker Cache Buildkite Plugin [![Build status](https://badge.buildkite.com/a3851ab6b8e918f7a29d1d43fd8a410308fd5a50455b8a4ab3.svg)](https://buildkite.com/buildkite/plugins-docker-cache)
 
-A [Buildkite plugin](https://buildkite.com/docs/agent/v3/plugins) for caching [Docker](https://docker.com) images across builds using various registry providers (ECR, GAR, Buildkite Packages, and Artifactory Docker Registry currently supported).
+A [Buildkite plugin](https://buildkite.com/docs/agent/v3/plugins) for caching [Docker](https://docker.com) images across builds using various registry providers (ECR, GAR, ACR, Buildkite Packages, and Artifactory Docker Registry currently supported).
 
-This plugin speeds up your Docker builds by caching images between pipeline runs. Instead of rebuilding the same Docker image every time, it stores built images in ECR, Google Artifact Registry, Buildkite Packages, or Artifactory Docker Registry and reuses them when nothing has changed.
+This plugin speeds up your Docker builds by caching images between pipeline runs. Instead of rebuilding the same Docker image every time, it stores built images in ECR, Google Artifact Registry, Azure Container Registry, Buildkite Packages, or Artifactory Docker Registry and reuses them when nothing has changed.
 
-The plugin will check if a cached version of your image already exists. If it does, it pulls that instead of rebuilding. If not, it builds the image and saves it for next time. It automatically creates the necessary repositories in your registry if they don't exist (ECR and GAR only - Buildkite Packages registries are managed through the UI).
+The plugin will check if a cached version of your image already exists. If it does, it pulls that instead of rebuilding. If not, it builds the image and saves it for next time. It automatically creates the necessary repositories in your registry if they don't exist (ECR, GAR, and ACR - Buildkite Packages registries are managed through the UI).
 
 Cache keys are generated based on your Dockerfile content and build context, so the cache automatically invalidates when you make changes to your code or build configuration.
 
@@ -93,6 +93,22 @@ steps:
             registry-url: myjfroginstance.jfrog.io
             username: me@example.com
             identity-token: $ARTIFACTORY_IDENTITY_TOKEN
+```
+
+### Azure Container Registry (ACR) Provider
+
+The following pipeline will cache Docker builds in Azure Container Registry:
+
+```yaml
+steps:
+  - label: "🐳 Build with ACR cache"
+    command: "echo 'Building with cache'"
+    plugins:
+      - docker-cache#v1.0.0:
+          provider: acr
+          image: my-app
+          acr:
+            registry-name: myregistry
 ```
 
 ### Cache Strategies
@@ -194,7 +210,7 @@ These are all the options available to configure this plugin's behaviour.
 
 #### `provider` (string)
 
-Which registry provider to use for caching. Supported values: `ecr`, `gar`, `buildkite`, `artifactory`.
+Which registry provider to use for caching. Supported values: `ecr`, `gar`, `acr`, `buildkite`, `artifactory`.
 
 #### `image` (string)
 
@@ -385,6 +401,28 @@ The Artifactory identity token for authentication. Can reference an environment 
 
 Artifactory repository name. If omitted, defaults to the image name.
 
+### ACR Provider Options
+
+**Note:** Authentication is handled by the Azure CLI (`az`). Ensure your Buildkite agent has authenticated with Azure before running this plugin. The authentication token has a 3-hour TTL, which is typically sufficient for CI/CD builds.
+
+When using `provider: acr`, these options are available:
+
+#### `acr.registry-name` (string, required)
+
+The ACR registry name (not the full URL). The plugin will construct the full registry URL as `{registry-name}.azurecr.io`.
+
+The registry name must be 5-50 alphanumeric characters and start with a letter.
+
+Example: `myregistry` (results in `myregistry.azurecr.io`)
+
+#### `acr.repository` (string)
+
+ACR repository name. If omitted, defaults to the image name.
+
+This allows you to organize cache images in a specific repository namespace.
+
+Example: `docker-cache` (for repository name, results in full path like `myregistry.azurecr.io/docker-cache/image`)
+
 ## Authentication
 
 ### ECR Authentication
@@ -468,6 +506,23 @@ OIDC authentication requires:
 - Proper OIDC policy configuration in your Buildkite organization
 - Pipeline access to the target registry
 
+### ACR Authentication
+
+The plugin uses the Azure CLI (`az`) for ACR authentication. Ensure your build environment has Azure credentials configured using one of the following methods:
+
+- Service Principal credentials
+- Managed Identity (recommended for Azure VMs/AKS)
+- Azure CLI login (`az login`)
+
+The plugin automatically runs `az acr login --name {registry-name}` to authenticate with your ACR registry.
+
+Required Azure roles:
+- `AcrPull` - To pull cached images from the registry
+- `AcrPush` - To push new cache images to the registry
+
+**Token Expiration:** ACR authentication tokens have a 3-hour TTL. This is typically sufficient for CI/CD builds. For longer-running builds, consider using Managed Identity which automatically refreshes tokens.
+
+**Repository Auto-Creation:** Unlike some other registries, ACR automatically creates repositories on first push. No explicit repository creation is required.
 
 ## Cache Key Generation
 
@@ -484,7 +539,7 @@ This ensures the cache is invalidated whenever anything that affects the build c
 
 | Elastic Stack | Agent Stack K8s | Hosted (Mac) | Hosted (Linux) | Notes |
 | :-----------: | :-------------: | :----------: | :------------: |:---- |
-| ✅ |  ✅ | ❌ | ✅ | **ECR** – Requires `awscli`<br/>**GAR** – Requires `gcloud`<br/>**Buildkite Packages** – Requires `docker`<br/>**Artifactory** – Requires `docker`<br/>**Hosted (Mac)** – Docker engine not available |
+| ✅ |  ✅ | ❌ | ✅ | **ECR** – Requires `awscli`<br/>**GAR** – Requires `gcloud`<br/>**ACR** – Requires `az` (Azure CLI)<br/>**Buildkite Packages** – Requires `docker`<br/>**Artifactory** – Requires `docker`<br/>**Hosted (Mac)** – Docker engine not available |
 
 - ✅ Fully supported (all combinations of attributes have been tested to pass)
 - ⚠️ Partially supported (some combinations cause errors/issues)

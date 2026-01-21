@@ -87,6 +87,11 @@ check_dependencies() {
     artifactory)
       # Artifactory only requires Docker, which is already checked above
       ;;
+    acr)
+      if ! command_exists az; then
+        missing_deps+=("az")
+      fi
+      ;;
   esac
 
   if [[ ${#missing_deps[@]} -gt 0 ]]; then
@@ -115,6 +120,10 @@ build_cache_image_name() {
     artifactory)
       local repository="${BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REPOSITORY:-${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}}"
       echo "${BUILDKITE_PLUGIN_DOCKER_CACHE_ARTIFACTORY_REGISTRY_URL}/${repository}/${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_TAG:-cache}-${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}"
+      ;;
+    acr)
+      local repository="${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REPOSITORY:-${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}}"
+      echo "${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_URL}/${repository}/${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_TAG:-cache}-${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}"
       ;;
     *)
       log_error "Unknown provider: ${BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER}"
