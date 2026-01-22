@@ -40,10 +40,6 @@ setup_acr_environment() {
   local az_output
   local access_token
 
-  if [[ "${BUILDKITE_PLUGIN_DOCKER_CACHE_VERBOSE:-false}" == "true" ]]; then
-    log_info "Running: az acr login --name ${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME} --expose-token --output tsv --query accessToken"
-  fi
-
   if ! az_output=$(az acr login --name "${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME}" --expose-token --output tsv --query accessToken 2>&1); then
     log_error "Failed to get ACR access token"
     log_error "Azure CLI output: ${az_output}"
@@ -59,17 +55,6 @@ setup_acr_environment() {
     log_error "ACR access token is empty"
     log_error "Azure CLI output: ${az_output}"
     exit 1
-  fi
-
-  if [[ "${BUILDKITE_PLUGIN_DOCKER_CACHE_VERBOSE:-false}" == "true" ]]; then
-    # Log masked token for debugging (first 10 and last 10 chars)
-    local token_length=${#access_token}
-    if [[ $token_length -gt 20 ]]; then
-      local token_preview="${access_token:0:10}...${access_token: -10}"
-      log_info "Access token retrieved (masked): ${token_preview}"
-    else
-      log_info "Access token retrieved (length: ${token_length} chars)"
-    fi
   fi
 
   # Login to Docker registry using the token
