@@ -39,7 +39,9 @@ setup_acr_environment() {
     exit 1
   fi
 
-  access_token="$az_output"
+  # Extract only the JWT token (last line), ignoring WARNING messages
+  # Azure CLI outputs warnings to stderr (captured with 2>&1), followed by the token
+  access_token=$(echo "$az_output" | tail -n 1)
 
   if [[ -z "$access_token" ]]; then
     log_error "ACR access token is empty"
