@@ -96,6 +96,63 @@ setup() {
   unstub gcloud
 }
 
+@test "Pre-command hook runs cache operations with ACR provider" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='acr'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE='test-image'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME='testregistry'
+
+  # N.B: Using function override instead of stub for az commands because
+  # we need to handle both 'az acr show' and 'az acr login --expose-token'
+  # with different outputs. Function overrides provide better control.
+  function az() {
+    if [[ "$1" == "acr" && "$2" == "show" ]]; then
+      echo "testregistry.azurecr.io"
+      return 0
+    elif [[ "$1" == "acr" && "$2" == "login" && "$5" == "--expose-token" ]]; then
+      echo "fake-access-token-12345"
+      return 0
+    fi
+    return 1
+  }
+  export -f az
+
+  # N.B: Using function override instead of stub for docker commands because
+  # stub patterns don't handle complex multi-argument docker commands reliably.
+  # This approach provides better control over command simulation.
+  function docker() {
+    case "$1" in
+      login)
+        if [[ "$2" == "testregistry.azurecr.io" ]]; then
+          cat > /dev/null  # Read token from stdin
+          echo "Login Succeeded"
+          return 0
+        fi
+        ;;
+      build)
+        if [[ "$*" =~ "--cache-from" ]]; then
+          echo "Successfully built with cache layers abc123"
+        else
+          echo "Successfully built abc123"
+        fi
+        return 0
+        ;;
+      tag)
+        return 0
+        ;;
+      *)
+        command docker "$@"
+        ;;
+    esac
+  }
+  export -f docker
+
+  run "$PWD"/hooks/pre-command
+
+  assert_success
+  assert_output --partial 'Docker cache build'
+  assert_output --partial 'ACR registry URL'
+}
+
 @test "artifact strategy with cache hit pulls complete image" {
   export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='ecr'
   export BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE='test-app'
