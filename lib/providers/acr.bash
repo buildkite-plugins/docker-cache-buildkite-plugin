@@ -15,10 +15,22 @@ setup_acr_environment() {
     exit 1
   fi
 
-  # Construct registry URL from registry name
-  local registry_url="${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME}.azurecr.io"
-  export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_URL="$registry_url"
+  # Get the actual registry login server from Azure instead of constructing it
+  # This ensures we get the correct URL including any suffixes
+  local registry_url
+  if ! registry_url=$(az acr show --name "${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME}" --query loginServer --output tsv 2>&1); then
+    log_error "Failed to get ACR registry login server"
+    log_error "Azure CLI output: ${registry_url}"
+    log_info "Ensure the registry '${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME}' exists and you have access to it"
+    exit 1
+  fi
 
+  if [[ -z "$registry_url" ]]; then
+    log_error "ACR registry login server is empty"
+    exit 1
+  fi
+
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_URL="$registry_url"
   log_info "ACR registry URL: ${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_URL}"
 
   log_info "Authenticating with ACR..."

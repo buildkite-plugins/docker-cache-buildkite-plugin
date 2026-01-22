@@ -604,7 +604,10 @@ setup() {
     export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME="$name"
 
     function az() {
-      if [[ "$1" == "acr" && "$2" == "login" && "$3" == "--name" && "$5" == "--expose-token" ]]; then
+      if [[ "$1" == "acr" && "$2" == "show" && "$3" == "--name" && "$5" == "--query" && "$6" == "loginServer" ]]; then
+        echo "${4}.azurecr.io"
+        return 0
+      elif [[ "$1" == "acr" && "$2" == "login" && "$3" == "--name" && "$5" == "--expose-token" ]]; then
         echo "fake-access-token-12345"
         return 0
       fi
@@ -667,7 +670,10 @@ setup() {
     export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REPOSITORY="$repo"
 
     function az() {
-      if [[ "$1" == "acr" && "$2" == "login" && "$3" == "--name" && "$5" == "--expose-token" ]]; then
+      if [[ "$1" == "acr" && "$2" == "show" && "$3" == "--name" && "$5" == "--query" && "$6" == "loginServer" ]]; then
+        echo "myregistry.azurecr.io"
+        return 0
+      elif [[ "$1" == "acr" && "$2" == "login" && "$3" == "--name" && "$5" == "--expose-token" ]]; then
         echo "fake-access-token-12345"
         return 0
       fi
@@ -693,7 +699,10 @@ setup() {
   export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME='myregistry'
 
   function az() {
-    if [[ "$1" == "acr" && "$2" == "login" && "$3" == "--name" && "$5" == "--expose-token" ]]; then
+    if [[ "$1" == "acr" && "$2" == "show" && "$3" == "--name" && "$5" == "--query" && "$6" == "loginServer" ]]; then
+      echo "myregistry.azurecr.io"
+      return 0
+    elif [[ "$1" == "acr" && "$2" == "login" && "$3" == "--name" && "$5" == "--expose-token" ]]; then
       echo "fake-access-token-12345"
       return 0
     fi
