@@ -4,8 +4,7 @@
 
 setup_acr_environment() {
   if ! command_exists az; then
-    log_error "Azure CLI (az) is required for ACR provider"
-    log_info "Install from: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli"
+    log_error "Azure CLI is required for ACR provider"
     exit 1
   fi
 
@@ -18,10 +17,8 @@ setup_acr_environment() {
   # Get the actual registry login server from Azure instead of constructing it
   # This ensures we get the correct URL including any suffixes
   local registry_url
-  if ! registry_url=$(az acr show --name "${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME}" --query loginServer --output tsv 2>&1); then
+  if ! registry_url=$(az acr show --name "${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME}" --query loginServer --output tsv 2>/dev/null); then
     log_error "Failed to get ACR registry login server"
-    log_error "Azure CLI output: ${registry_url}"
-    log_info "Ensure the registry '${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME}' exists and you have access to it"
     exit 1
   fi
 
@@ -37,34 +34,23 @@ setup_acr_environment() {
 
   # Use --expose-token to avoid Docker daemon dependency
   # Extract access token using Azure CLI's --query parameter
-  local az_output
   local access_token
-
-  if ! az_output=$(az acr login --name "${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME}" --expose-token --output tsv --query accessToken 2>&1); then
+  if ! access_token=$(az acr login --name "${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME}" --expose-token --output tsv --query accessToken 2>&1 | tail -n 1); then
     log_error "Failed to get ACR access token"
-    log_error "Azure CLI output: ${az_output}"
-    log_info "Ensure you have the required permissions (AcrPull, AcrPush) and are authenticated with Azure"
     exit 1
   fi
 
-  # Extract only the JWT token (last line), ignoring WARNING messages
-  # Azure CLI outputs warnings to stderr (captured with 2>&1), followed by the token
-  access_token=$(echo "$az_output" | tail -n 1)
-
   if [[ -z "$access_token" ]]; then
     log_error "ACR access token is empty"
-    log_error "Azure CLI output: ${az_output}"
     exit 1
   fi
 
   # Login to Docker registry using the token
   # ACR uses a special username (00000000-0000-0000-0000-000000000000) for token-based authentication
-  local docker_output
-  if docker_output=$(echo "$access_token" | docker login "$registry_url" --username 00000000-0000-0000-0000-000000000000 --password-stdin 2>&1); then
+  if echo "$access_token" | docker login "$registry_url" --username 00000000-0000-0000-0000-000000000000 --password-stdin >/dev/null 2>&1; then
     log_success "Successfully authenticated with ACR"
   else
-    log_error "Failed to authenticate Docker with ACR using access token"
-    log_error "Docker login output: ${docker_output}"
+    log_error "Failed to authenticate with ACR"
     exit 1
   fi
 }
@@ -166,7 +152,7 @@ save_acr_cache() {
   fi
 
   # Note: ACR automatically creates repositories on first push, no explicit creation needed
-  log_info "Saving cache to ACR (repository will be auto-created if needed)"
+  log_info "Ensuring ACR repository exists (auto-created if needed)"
 
   # Build cache image name with latest tag for layer caching
   local repository="${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REPOSITORY:-${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}}"
