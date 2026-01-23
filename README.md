@@ -21,7 +21,7 @@ steps:
   - label: "🐳 Build with ECR cache"
     command: "echo 'Building with cache'"
     plugins:
-      - docker-cache#v1.0.0:
+      - docker-cache#v1.1.0:
           provider: ecr
           image: my-app
           ecr:
@@ -38,7 +38,7 @@ steps:
   - label: "🐳 Build with GAR cache"
     command: "echo 'Building with cache'"
     plugins:
-      - docker-cache#v1.0.0:
+      - docker-cache#v1.1.0:
           provider: gar
           image: my-app
           gar:
@@ -55,7 +55,7 @@ steps:
   - label: "🐳 Build with Buildkite Packages cache"
     command: "echo 'Building with cache'"
     plugins:
-      - docker-cache#v1.0.0:
+      - docker-cache#v1.1.0:
           provider: buildkite
           image: my-app
           buildkite:
@@ -69,7 +69,7 @@ steps:
   - label: "🐳 Build with Buildkite Packages cache (OIDC)"
     command: "echo 'Building with cache'"
     plugins:
-      - docker-cache#v1.0.0:
+      - docker-cache#v1.1.0:
           provider: buildkite
           image: my-app
           buildkite:
@@ -86,7 +86,7 @@ steps:
   - label: "🐳 Build with Artifactory cache"
     command: "echo 'Building with cache'"
     plugins:
-      - docker-cache#v1.0.0:
+      - docker-cache#v1.1.0:
           provider: artifactory
           image: my-app
           artifactory:
@@ -123,7 +123,7 @@ Pulls the complete cached image if available, builds from scratch if not:
 steps:
   - label: "🐳 Artifact strategy"
     plugins:
-      - docker-cache#v1.0.0:
+      - docker-cache#v1.1.0:
           provider: ecr
           image: my-app
           strategy: artifact
@@ -140,7 +140,7 @@ Uses layer caching during the build process:
 steps:
   - label: "🐳 Build strategy"
     plugins:
-      - docker-cache#v1.0.0:
+      - docker-cache#v1.1.0:
           provider: ecr
           image: my-app
           strategy: build
@@ -157,7 +157,7 @@ Tries artifact strategy first, falls back to build strategy if pull fails:
 steps:
   - label: "🐳 Hybrid strategy"
     plugins:
-      - docker-cache#v1.0.0:
+      - docker-cache#v1.1.0:
           provider: ecr
           image: my-app
           strategy: hybrid
@@ -174,7 +174,7 @@ For multi-stage Dockerfiles, you can specify the target stage:
 steps:
   - label: "🐳 Multi-stage build"
     plugins:
-      - docker-cache#v1.0.0:
+      - docker-cache#v1.1.0:
           provider: ecr
           image: my-app
           target: production
@@ -191,7 +191,7 @@ You can pass build arguments to Docker:
 steps:
   - label: "🐳 Build with args"
     plugins:
-      - docker-cache#v1.0.0:
+      - docker-cache#v1.1.0:
           provider: ecr
           image: my-app
           build-args:
@@ -473,7 +473,7 @@ Uses a Buildkite API token with Read Packages and Write Packages scopes:
 
 ```yaml
 plugins:
-  - docker-cache#v1.0.0:
+  - docker-cache#v1.1.0:
       provider: buildkite
       image: my-app
       buildkite:
@@ -493,7 +493,7 @@ Uses buildkite-agent OIDC tokens for passwordless authentication:
 
 ```yaml
 plugins:
-  - docker-cache#v1.0.0:
+  - docker-cache#v1.1.0:
       provider: buildkite
       image: my-app
       buildkite:
