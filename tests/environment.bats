@@ -722,3 +722,37 @@ setup() {
   assert_success
   assert_output --partial 'Setting up Docker cache environment'
 }
+
+@test "Uses default fallback-tag when not specified" {
+  # Load the plugin library for testing
+  source "$PWD/lib/plugin.bash"
+
+  unset BUILDKITE_PLUGIN_DOCKER_CACHE_FALLBACK_TAG
+  plugin_read_config
+
+  assert [ "$BUILDKITE_PLUGIN_DOCKER_CACHE_FALLBACK_TAG" = "latest" ]
+}
+
+@test "Accepts custom fallback-tag values" {
+  # Load the plugin library for testing
+  source "$PWD/lib/plugin.bash"
+
+  for tag in "cache-main" "build-123" "cache-abc123" "stable" "v1.0.0"; do
+    export BUILDKITE_PLUGIN_DOCKER_CACHE_FALLBACK_TAG="$tag"
+    plugin_read_config
+
+    assert [ "$BUILDKITE_PLUGIN_DOCKER_CACHE_FALLBACK_TAG" = "$tag" ]
+  done
+}
+
+@test "Accepts fallback-tag with environment variable expansion" {
+  # Load the plugin library for testing
+  source "$PWD/lib/plugin.bash"
+
+  export BUILDKITE_COMMIT="abc123def456"
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_FALLBACK_TAG='cache-${BUILDKITE_COMMIT:0:7}'
+  plugin_read_config
+
+  # Variable expansion happens when the tag is used, not when read
+  assert [ "$BUILDKITE_PLUGIN_DOCKER_CACHE_FALLBACK_TAG" = 'cache-${BUILDKITE_COMMIT:0:7}' ]
+}
