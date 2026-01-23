@@ -104,7 +104,7 @@ steps:
   - label: "🐳 Build with ACR cache"
     command: "echo 'Building with cache'"
     plugins:
-      - docker-cache#v1.0.0:
+      - docker-cache#v1.1.0:
           provider: acr
           image: my-app
           acr:
