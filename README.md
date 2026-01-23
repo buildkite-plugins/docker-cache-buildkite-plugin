@@ -298,6 +298,43 @@ Environment variable name for exporting the final image reference.
 
 Enable verbose logging.
 
+#### `fallback-tag` (string, default: `latest`)
+
+Tag used for layer caching "fallback" when no exact cache match exists. The plugin looks for an image with this tag to use for Docker layer caching, improving build performance even without an exact cache hit. Useful for registries with immutable tags where `:latest` cannot be overwritten.
+
+Using a static tag:
+
+```yaml
+steps:
+  - plugins:
+      - docker-cache#v1.1.0:
+          provider: ecr
+          image: my-app
+          fallback-tag: cache-main
+```
+
+Using a tag containing the commit SHA:
+
+```yaml
+steps:
+  - plugins:
+      - docker-cache#v1.1.0:
+          provider: acr
+          image: my-app
+          fallback-tag: cache-${BUILDKITE_COMMIT:0:7}
+```
+
+Using the build number as part of the tag:
+
+```yaml
+steps:
+  - plugins:
+      - docker-cache#v1.1.0:
+          provider: gar
+          image: my-app
+          fallback-tag: build-${BUILDKITE_BUILD_NUMBER}
+```
+
 #### `tag` (string)
 
 Custom tag for the cached image. If not provided, generated from git commit or pipeline context.
