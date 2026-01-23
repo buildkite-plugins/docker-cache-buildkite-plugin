@@ -556,3 +556,169 @@ setup() {
   # Clean up
   rm -rf tests/fixtures
 }
+
+@test "ACR provider requires registry name" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='acr'
+
+  run "$PWD"/hooks/environment
+  assert_failure
+  assert_output --partial 'ACR registry name is required'
+  assert_output --partial "Set it via the 'acr.registry-name' parameter"
+}
+
+@test "Fails with invalid ACR registry name - too short" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='acr'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME='abcd'
+
+  run "$PWD"/hooks/environment
+  assert_failure
+  assert_output --partial 'invalid ACR registry name'
+  assert_output --partial 'must be 5-50 alphanumeric characters'
+}
+
+@test "Fails with invalid ACR registry name - starts with number" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='acr'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME='123registry'
+
+  run "$PWD"/hooks/environment
+  assert_failure
+  assert_output --partial 'invalid ACR registry name'
+  assert_output --partial 'starting with a letter'
+}
+
+@test "Fails with invalid ACR registry name - contains hyphen" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='acr'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME='my-registry'
+
+  run "$PWD"/hooks/environment
+  assert_failure
+  assert_output --partial 'invalid ACR registry name'
+  assert_output --partial 'must be 5-50 alphanumeric characters'
+}
+
+@test "Accepts valid ACR registry names" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='acr'
+
+  # Test valid registry names
+  for name in "myregistry" "Registry123" "testRegistry" "MyRegistry1234567890"; do
+    export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME="$name"
+
+    function az() {
+      if [[ "$1" == "acr" && "$2" == "show" && "$3" == "--name" && "$5" == "--query" && "$6" == "loginServer" ]]; then
+        echo "${4}.azurecr.io"
+        return 0
+      elif [[ "$1" == "acr" && "$2" == "login" && "$3" == "--name" && "$5" == "--expose-token" ]]; then
+        echo "fake-access-token-12345"
+        return 0
+      fi
+      return 1
+    }
+    export -f az
+
+    function docker() {
+      if [[ "$1" == "login" ]]; then
+        return 0
+      fi
+      return 1
+    }
+    export -f docker
+
+    run "$PWD"/hooks/environment
+    assert_success
+  done
+}
+
+@test "ACR provider validates repository name format" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='acr'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME='myregistry'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REPOSITORY='Invalid@Repository'
+
+  run "$PWD"/hooks/environment
+  assert_failure
+  assert_output --partial 'invalid ACR repository name'
+  assert_output --partial 'must contain only lowercase letters'
+}
+
+@test "ACR provider fails with repository starting with separator" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='acr'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME='myregistry'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REPOSITORY='/invalid-repo'
+
+  run "$PWD"/hooks/environment
+  assert_failure
+  assert_output --partial 'invalid ACR repository name'
+  assert_output --partial 'cannot start/end with separators'
+}
+
+@test "ACR provider fails with consecutive separators in repository" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='acr'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME='myregistry'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REPOSITORY='team//project'
+
+  run "$PWD"/hooks/environment
+  assert_failure
+  assert_output --partial 'invalid ACR repository name'
+  assert_output --partial 'cannot start/end with separators or have consecutive separators'
+}
+
+@test "ACR provider accepts valid repository names" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='acr'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME='myregistry'
+
+  # Test valid repository names
+  for repo in "docker-cache" "team/project" "team.project" "team_project" "my-app/cache"; do
+    export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REPOSITORY="$repo"
+
+    function az() {
+      if [[ "$1" == "acr" && "$2" == "show" && "$3" == "--name" && "$5" == "--query" && "$6" == "loginServer" ]]; then
+        echo "myregistry.azurecr.io"
+        return 0
+      elif [[ "$1" == "acr" && "$2" == "login" && "$3" == "--name" && "$5" == "--expose-token" ]]; then
+        echo "fake-access-token-12345"
+        return 0
+      fi
+      return 1
+    }
+    export -f az
+
+    function docker() {
+      if [[ "$1" == "login" ]]; then
+        return 0
+      fi
+      return 1
+    }
+    export -f docker
+
+    run "$PWD"/hooks/environment
+    assert_success
+  done
+}
+
+@test "ACR provider accepts valid configuration without repository" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='acr'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_NAME='myregistry'
+
+  function az() {
+    if [[ "$1" == "acr" && "$2" == "show" && "$3" == "--name" && "$5" == "--query" && "$6" == "loginServer" ]]; then
+      echo "myregistry.azurecr.io"
+      return 0
+    elif [[ "$1" == "acr" && "$2" == "login" && "$3" == "--name" && "$5" == "--expose-token" ]]; then
+      echo "fake-access-token-12345"
+      return 0
+    fi
+    return 1
+  }
+  export -f az
+
+  function docker() {
+    if [[ "$1" == "login" ]]; then
+      return 0
+    fi
+    return 1
+  }
+  export -f docker
+
+  run "$PWD"/hooks/environment
+  assert_success
+  assert_output --partial 'Setting up Docker cache environment'
+}
