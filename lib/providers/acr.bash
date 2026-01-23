@@ -111,8 +111,8 @@ restore_acr_cache() {
       else
         log_info "No cache found for key ${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY} - will build from scratch"
         # Try to find any existing cache image for layer caching by checking for latest tag
-        local repository="${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REPOSITORY:-${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}}"
-        local fallback_cache_image="${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_URL}/${repository}/${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_FALLBACK_TAG}"
+        local fallback_cache_image
+        fallback_cache_image=$(build_cache_image_name "${BUILDKITE_PLUGIN_DOCKER_CACHE_FALLBACK_TAG}")
         if image_exists_in_registry "$fallback_cache_image"; then
           log_info "Using latest cache for layer caching: $fallback_cache_image"
           export BUILDKITE_PLUGIN_DOCKER_CACHE_FROM="$fallback_cache_image"
@@ -155,8 +155,8 @@ save_acr_cache() {
   log_info "Ensuring ACR repository exists (auto-created if needed)"
 
   # Build cache image name with latest tag for layer caching
-  local repository="${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REPOSITORY:-${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}}"
-  local latest_image="${BUILDKITE_PLUGIN_DOCKER_CACHE_ACR_REGISTRY_URL}/${repository}/${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_FALLBACK_TAG}"
+  local latest_image
+  latest_image=$(build_cache_image_name "${BUILDKITE_PLUGIN_DOCKER_CACHE_FALLBACK_TAG}")
 
   if tag_image "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}" "$cache_image"; then
     if push_image "$cache_image"; then
