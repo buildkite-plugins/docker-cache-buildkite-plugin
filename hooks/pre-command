@@ -51,7 +51,7 @@ main() {
 
     # Check if we already have the required tags locally
     local target_with_key="${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}"
-    local target_latest="${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:latest"
+    local target_latest="${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_FALLBACK_TAG}"
 
     local needs_key_tag=true
     local needs_latest_tag=true
@@ -145,7 +145,7 @@ main() {
       log_success "Image built successfully"
 
       # Tag as latest
-      tag_image "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}" "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:latest"
+      tag_image "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}" "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}:${BUILDKITE_PLUGIN_DOCKER_CACHE_FALLBACK_TAG}"
 
       # Push cache
       echo "--- :docker: Pushing cache"
