@@ -91,7 +91,7 @@ restore_gar_cache() {
         log_info "No cache found for key ${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY} - will build from scratch"
         # Try to find any existing cache image for layer caching by checking for latest tag
         local fallback_cache_image
-        fallback_cache_image=$(build_cache_image_name | sed 's/:cache-.*/:latest/')
+        fallback_cache_image=$(build_cache_image_name "${BUILDKITE_PLUGIN_DOCKER_CACHE_FALLBACK_TAG}")
         if image_exists_in_registry "$fallback_cache_image"; then
           log_info "Using latest cache for layer caching: $fallback_cache_image"
           export BUILDKITE_PLUGIN_DOCKER_CACHE_FROM="$fallback_cache_image"
@@ -148,7 +148,7 @@ save_gar_cache() {
 
   # Build latest image name for layer caching
   local latest_image
-  latest_image=$(build_cache_image_name | sed 's/:cache-.*/:latest/')
+  latest_image=$(build_cache_image_name "${BUILDKITE_PLUGIN_DOCKER_CACHE_FALLBACK_TAG}")
 
   if tag_image "${BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE}" "$cache_image"; then
     if push_image "$cache_image"; then

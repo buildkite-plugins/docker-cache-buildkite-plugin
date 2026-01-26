@@ -528,3 +528,70 @@ setup() {
   assert_output --partial 'Docker cache build'
   assert_output --partial 'Complete cache hit'
 }
+
+@test "Custom fallback-tag is used instead of latest" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='ecr'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE='test-app'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_FALLBACK_TAG='cache-main'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGION='us-east-1'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_ACCOUNT_ID='123456789012'
+
+  stub aws \
+    "ecr get-login-password --region us-east-1 : echo password" \
+    "ecr describe-repositories --repository-names test-app --region us-east-1 : exit 1" \
+    "ecr create-repository --repository-name test-app --region us-east-1 : echo '{\"repository\":{\"repositoryUri\":\"123456789012.dkr.ecr.us-east-1.amazonaws.com/test-app\"}}'"
+
+  # Create temp file to track tag usage
+  local tag_marker="${BATS_TEST_TMPDIR}/tag_marker"
+
+  function docker() {
+    case "$1" in
+      login)
+        if [[ "$2" == "--username" ]]; then
+          cat > /dev/null
+          echo "Login Succeeded"
+          return 0
+        fi
+        ;;
+      manifest)
+        return 1  # Simulate cache miss
+        ;;
+      build)
+        echo "Successfully built abc123"
+        return 0
+        ;;
+      tag)
+        # Check if cache-main tag is used instead of latest
+        if [[ "$3" =~ :cache-main$ ]]; then
+          echo "true" > "$tag_marker"
+        fi
+        return 0
+        ;;
+      push)
+        echo "Successfully pushed image"
+        return 0
+        ;;
+      image)
+        if [[ "$2" == "inspect" ]]; then
+          return 0
+        fi
+        ;;
+      *)
+        command docker "$@"
+        ;;
+    esac
+  }
+  export -f docker
+  export tag_marker
+
+  run "$PWD"/hooks/pre-command
+
+  assert_success
+  assert_output --partial 'Docker cache build'
+
+  # Verify that cache-main tag was used
+  assert [ -f "$tag_marker" ]
+  assert [ "$(cat "$tag_marker")" = "true" ]
+
+  unstub aws
+}

@@ -158,6 +158,10 @@ configuration:
       type: boolean
       description: Enable verbose logging
       default: false
+    fallback-tag:
+      type: string
+      description: Tag used for layer caching fallback when no exact cache match exists
+      default: "latest"
   required:
     - provider
     - image
