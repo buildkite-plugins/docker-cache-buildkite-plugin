@@ -94,12 +94,18 @@ generate_cache_key() {
     # User provided explicit cache key
     if [[ "${BUILDKITE_PLUGIN_DOCKER_CACHE_CACHE_KEY}" == *"/"* ]]; then
       # Treat as file path(s)
-      echo "${BUILDKITE_PLUGIN_DOCKER_CACHE_CACHE_KEY}" | tr ',' '\n' | while read -r file; do
-        if [[ -f "$file" ]]; then
-          sha1sum "$file"
-        else
-          log_warning "Cache key file not found $file"
+      local files
+      IFS=',' read -r -a files <<< "${BUILDKITE_PLUGIN_DOCKER_CACHE_CACHE_KEY}"
+      for file in "${files[@]}"; do
+        if [[ ! -f "$file" ]]; then
+          log_error "Cache key file not found: $file"
+          exit 1
         fi
+      done
+
+      # Hash all files
+      for file in "${files[@]}"; do
+        sha1sum "$file"
       done | sha1sum | cut -d' ' -f1
     else
       # Treat as string

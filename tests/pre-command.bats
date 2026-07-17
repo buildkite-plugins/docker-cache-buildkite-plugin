@@ -595,3 +595,111 @@ setup() {
 
   unstub aws
 }
+
+@test "Pre-command hook generates cache key on demand after checkout" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='ecr'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE='test-image'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGION='us-west-2'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_ACCOUNT_ID='123456789012'
+  
+  # Ensure the custom cache-key points to a file we create during the test
+  mkdir -p tests/fixtures
+  echo "FROM alpine:latest" > tests/fixtures/test-dockerfile
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_CACHE_KEY='tests/fixtures/test-dockerfile'
+
+  stub aws "ecr get-login-password --region us-west-2 : echo password"
+  
+  function docker() {
+    case "$1" in
+      login)
+        cat > /dev/null
+        return 0
+        ;;
+      build)
+        # Verify that key is a valid 40-char SHA1 hash of the file
+        local tag=$(echo "$*" | grep -o -E 'test-image:[a-f0-9]{40}')
+        if [[ -n "$tag" ]]; then
+          echo "Tag found: $tag"
+        else
+          echo "Invalid tag: $*"
+          return 1
+        fi
+        return 0
+        ;;
+      *)
+        return 0
+        ;;
+    esac
+  }
+  export -f docker
+
+  run "$PWD"/hooks/pre-command
+  assert_success
+  assert_output --partial "Generated cache key"
+  
+  rm -rf tests/fixtures
+  unstub aws
+}
+
+@test "Pre-command hook fails fast if cache key file is missing" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='ecr'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE='test-image'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGION='us-west-2'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_ACCOUNT_ID='123456789012'
+  
+  # Point cache-key to a non-existent file containing a slash so it is treated as a file path
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_CACHE_KEY='tests/fixtures/non-existent-file-path'
+
+  stub aws "ecr get-login-password --region us-west-2 : echo password"
+  
+  function docker() {
+    case "$1" in
+      login)
+        cat > /dev/null
+        return 0
+        ;;
+      *)
+        return 0
+        ;;
+    esac
+  }
+  export -f docker
+
+  run "$PWD"/hooks/pre-command
+  assert_failure
+  assert_output --partial "Cache key file not found: tests/fixtures/non-existent-file-path"
+
+  unstub aws
+}
+
+@test "Pre-command hook treats cache key without slash as a literal string" {
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_PROVIDER='ecr'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_IMAGE='test-image'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_REGION='us-west-2'
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_ECR_ACCOUNT_ID='123456789012'
+  
+  export BUILDKITE_PLUGIN_DOCKER_CACHE_CACHE_KEY='my-custom-literal-string'
+
+  stub aws "ecr get-login-password --region us-west-2 : echo password"
+  
+  local expected_hash=$(echo -n "my-custom-literal-string" | sha1sum | cut -d' ' -f1)
+
+  function docker() {
+    case "$1" in
+      login)
+        cat > /dev/null
+        return 0
+        ;;
+      *)
+        return 0
+        ;;
+    esac
+  }
+  export -f docker
+
+  run "$PWD"/hooks/pre-command
+  assert_success
+  assert_output --partial "Generated cache key $expected_hash"
+
+  unstub aws
+}
