@@ -61,16 +61,6 @@ main() {
 
   # Authenticate with registry
   setup_provider_environment
-
-  # Generate cache key if not set
-  if [[ -z "${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY:-}" ]]; then
-    local cache_key
-    cache_key=$(generate_cache_key)
-    export BUILDKITE_PLUGIN_DOCKER_CACHE_KEY="$cache_key"
-    log_info "Generated cache key - $cache_key"
-  else
-    log_info "Using provided cache key - ${BUILDKITE_PLUGIN_DOCKER_CACHE_KEY}"
-  fi
 }
 
 # Validation functions
